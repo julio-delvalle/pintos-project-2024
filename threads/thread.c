@@ -76,6 +76,62 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
+
+
+
+
+
+//NUEVAS:
+void insertar_en_lista_espera(int64_t ticks){
+
+  //Deshabilitar interrupciones
+  enum intr_level old_level;
+  old_level = intr_disable();
+
+  //Quitar del ready_list e insertar a lista_espera. Cambiar a THREAD_BLOCKED y definir tiempo:
+  struct thread *thread_actual = thread_current();
+
+  thread_actual->sleep_time = timer_ticks() + ticks;
+  //Sleep_time se definió en la estructura antes.
+
+  list_push_back(&lista_espera, &thread_actual->elem);
+  thread_block();
+
+  //Volver a activar interrupciones
+  intr_set_level(old_level);
+}
+
+void remover_thread_durmiente(int64_t ticks){
+
+  //cada timer interrupt verificar si ya se puede regresar el thread a ready_list:
+
+  //Iterando sobre lista_espera:
+  struct list_elem *iter = list_begin(&lista_espera);
+  while(iter != list_end(&lista_espera)){
+    struct thread *thread_lista_espera = list_entry(iter, struct thread, elem);
+
+    //Si el tiempo actual es mayor al tiempo que el thread debe estar dormido, entonces debe salir:
+    if(ticks >= thread_lista_espera->sleep_time){
+      //quitar de lista espera y agregar a ready_list:
+      iter = list_remove(iter);
+      thread_unblock(thread_lista_espera);
+    }else{
+      //que siga iterando
+      iter = list_next(iter);
+    }
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
