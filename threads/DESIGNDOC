@@ -66,7 +66,18 @@ FirstName LastName <email@domain.example>
 * En init_thread se inicializa true_priority (thread.c)
 
 * en thread_unblock se cambió list_push_back por list_insert_ordered para guardar de una vez ya ordenado cuando está ready.
-  * agregando parámetros 3 y 4: &t->priority, NULL
+  * se necesitaba una función comparadora de prioridades, se agregó thread_priority_compare
+  * Se manda como parámetro a list_insert_ordered
+  * Después se verifica si el thread actual tiene prioridad menor al nuevo, y si es cierto, se cambia (thread_yield)
+
+* thread_yield también se cambió para que hiciera list_insert_ordered al quitar un thread.
+
+* en sema_down también se cambió por list_insert_ordered
+
+* para thread_set_priority, al recibir nueva priority se cambia la prioridad real del thread. Y si no tiene prioridad donada (true_priority = priority) entonces cambia la priority también.
+  * Al cambiar la prioridad, se verifica que no haya quedado con prioridad menor al primer item de la lista. Si no hace yield.
+
+
 
 
 
