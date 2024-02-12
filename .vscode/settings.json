@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "*.inc": "c",
+        "exception": "c",
+        "debug.h": "c"
+    }
+}

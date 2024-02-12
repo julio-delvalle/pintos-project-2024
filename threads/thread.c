@@ -82,6 +82,17 @@ static tid_t allocate_tid (void);
 
 
 //NUEVAS:
+
+/* Used to keep the ready list in effective priority order. */
+bool thread_priority_compare (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
+{
+  //printf("dentro de thread_priority_compare\n");
+  return list_entry (a, struct thread, elem)->priority
+    > list_entry (b, struct thread, elem)->priority;
+}
+
+
+
 void insertar_en_lista_espera(int64_t ticks){
 
   //Deshabilitar interrupciones
@@ -262,8 +273,10 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
+//printf("antes de thread_unblock\n");
   /* Add to run queue. */
   thread_unblock (t);
+//printf("después de thread_unblock\n");
 
   return tid;
 }
@@ -295,15 +308,44 @@ thread_block (void)
 void
 thread_unblock (struct thread *t)
 {
+  //printf("dentro de thread_unblock\n");
   enum intr_level old_level;
 
   ASSERT (is_thread (t));
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  list_insert_ordered (&ready_list, &t->elem, thread_priority_compare, NULL);
   t->status = THREAD_READY;
+  //if(!list_empty(&ready_list)){
+    struct thread *first_item = list_entry(list_begin(&ready_list), struct thread, elem);
+    //printf("first item priority: %d\n",first_item->priority);
+    //printf("thread_current priority: %d\n",thread_current()->priority);
+    if (thread_current() != idle_thread && (first_item->priority > thread_current()->priority)) {
+        //printf("se va a hacer yield\n");
+          thread_yield();
+        /*if(intr_context()){
+          intr_yield_on_return();
+        }else{
+          thread_yield();
+        }*/
+    }
+ // }
   intr_set_level (old_level);
+
+
+  //Ahora que ya está insertado en la lista, verifica si tiene mayor prioridad y hace yield:
+  //if (!list_empty (&ready_list)) {
+    //printf("hay ready list\n");
+    //si tiene menor prioridad, el first_item debería ser el que se acaba de liberar:
+    //struct thread *first_item = list_entry(list_begin(&ready_list), struct thread, elem);
+    //printf("first item priority: %d\n",first_item->priority);
+    /*if (first_item->priority > thread_current()->priority) {
+      printf("se va a hacer yield\n");
+      thread_yield();
+    }*/
+  //}
+
 }
 
 /* Returns the name of the running thread. */
@@ -399,7 +441,33 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority)
 {
-  thread_current ()->priority = new_priority;
+  //este cambia la prioridad REAL del thread.
+  //printf("dentro de thread_set_priority\n");
+
+  //La cambia si es mayor que la donada, o si no hay donada.
+  if(new_priority > thread_current()->priority || thread_current()->true_priority == thread_current()->priority){
+    thread_current ()->priority = new_priority;
+  }
+
+  //La original la cambia siempre
+  thread_current()->true_priority = new_priority;
+
+
+
+  //ordena la ready_list:
+
+
+  //si el nuevo priority es menor que la nueva ready list, se cambia:
+  if (!list_empty (&ready_list)) {
+    //printf("list not empty\n");
+    struct thread *first_item = list_entry(list_begin(&ready_list), struct thread, elem);
+    //printf("first item priority: %d\n",first_item->priority);
+    if (first_item != NULL && first_item->priority > new_priority) {
+      //printf("se va a hacer yield\n");
+      thread_yield();
+    }
+  }
+//PENDIENTE
 }
 
 /* Returns the current thread's priority. */
@@ -526,6 +594,7 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  t->true_priority = priority;
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();

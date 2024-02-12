@@ -57,9 +57,18 @@ FirstName LastName <email@domain.example>
 ---- DATA STRUCTURES ----
 
 
-// Revisar thread_create debajo de thread_unblock
+// Revisar thread_create debajo de thread_unblock //Ah thread_create llama a thread_unblock que agrega a la lista de una. Entonces ordenar en thread_unblock
 // en thread_unblock cambiar list_push_back por insert_ordered
 //según el video habría que cambiar sema up y sema_down
+
+
+* Se agregó propiedad true_priority al struct thread (thread.h)
+* En init_thread se inicializa true_priority (thread.c)
+
+* en thread_unblock se cambió list_push_back por list_insert_ordered para guardar de una vez ya ordenado cuando está ready.
+  * agregando parámetros 3 y 4: &t->priority, NULL
+
+
 
 
 >> B1: Copy here the declaration of each new or changed `struct' or
