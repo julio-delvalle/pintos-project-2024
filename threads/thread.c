@@ -103,6 +103,7 @@ void insertar_en_lista_espera(int64_t ticks){
 
 void remover_thread_durmiente(int64_t ticks){
 
+  //Llamada deste timer_interrupt () en timer.c
   //cada timer interrupt verificar si ya se puede regresar el thread a ready_list:
 
   //Iterando sobre lista_espera:

@@ -95,8 +95,10 @@ timer_sleep (int64_t ticks)
   /*while (timer_elapsed (start) < ticks)
     thread_yield ();*/
 
-  insertar_en_lista_espera(ticks);
-
+  if(ticks > 0){
+    //Si es negativo, no lo pone en espera. Esto por test alarm-negative
+    insertar_en_lista_espera(ticks);
+  }
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
