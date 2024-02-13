@@ -241,7 +241,7 @@ tid_t
 thread_create (const char *name, int priority,
                thread_func *function, void *aux)
 {
-  printf("Se va a crear thread con priority %d \n",priority);
+  //printf("Se va a crear thread con priority %d \n",priority);
   struct thread *t;
   struct kernel_thread_frame *kf;
   struct switch_entry_frame *ef;
@@ -320,6 +320,7 @@ thread_unblock (struct thread *t)
   t->status = THREAD_READY;
   //Ahora que ya está insertado en la lista, verifica si tiene mayor prioridad y hace yield:
   struct thread *first_item = list_entry(list_begin(&ready_list), struct thread, elem);
+  //printf("name first_item: %s\n",first_item->name);
   //printf("first item priority: %d\n",first_item->priority);
   //printf("thread_current priority: %d\n",thread_current()->priority);
   if (thread_current() != idle_thread && (first_item->priority > thread_current()->priority)) {
