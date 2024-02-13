@@ -200,6 +200,23 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
+  //printf("current thread %s quiere lock\n",thread_current()->name);
+
+  struct thread *lock_holder_thread = lock->holder;
+  if(lock_holder_thread != NULL){
+    //printf("Ya %s tiene el lock con prioridad %d\n", lock_holder_thread->name, lock_holder_thread->priority);
+    //printf("current prioridad %d\n\n", thread_current()->priority);
+    if(thread_current()->priority > lock_holder_thread->priority){
+      lock_holder_thread->priority = thread_current()->priority;
+      //printf("se va a hacer yield\n");
+        thread_yield();
+    }else{
+
+    }
+  }else{
+    //printf("El lock está libre\n\n");
+  }
+
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
 }
@@ -235,8 +252,17 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
+  if(lock->holder->name != "main"){
+    printf("dentro de lock_release\n");
+    printf("lock_release: current holder %s with priority %d\n", lock->holder->name, lock->holder->priority);
+  }
+
   lock->holder = NULL;
   sema_up (&lock->semaphore);
+
+
+  //AL soltar el lock, buscar entre la lista de donors a ver si hay alguna otra
+  //prioridad mayor a la real. Obtener la prioridad mayor de los donantes restantes
 }
 
 /* Returns true if the current thread holds LOCK, false
@@ -299,7 +325,7 @@ cond_wait (struct condition *cond, struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
 
   sema_init (&waiter.semaphore, 0);
-  list_push_back (&cond->waiters, &waiter.elem);
+  list_insert_ordered (&cond->waiters, &waiter.elem, thread_priority_compare, NULL);
   lock_release (lock);
   sema_down (&waiter.semaphore);
   lock_acquire (lock);
@@ -320,9 +346,11 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
   ASSERT (!intr_context ());
   ASSERT (lock_held_by_current_thread (lock));
 
-  if (!list_empty (&cond->waiters))
-    sema_up (&list_entry (list_pop_front (&cond->waiters),
-                          struct semaphore_elem, elem)->semaphore);
+  if (!list_empty (&cond->waiters)){
+    list_sort(&cond->waiters, thread_priority_compare, NULL);
+    sema_up (&list_entry (list_pop_front (&cond->waiters), struct semaphore_elem, elem)->semaphore);
+
+  }
 }
 
 /* Wakes up all threads, if any, waiting on COND (protected by
