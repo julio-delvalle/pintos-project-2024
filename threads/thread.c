@@ -92,7 +92,6 @@ bool thread_priority_compare (const struct list_elem *a, const struct list_elem 
 }
 
 
-
 void insertar_en_lista_espera(int64_t ticks){
 
   //Deshabilitar interrupciones
@@ -134,6 +133,23 @@ void remover_thread_durmiente(int64_t ticks){
   }
 }
 
+void thread_priority_donate (struct thread *thread, int priority){
+  ASSERT (priority <= thread->priority);
+
+  //Le da la nueva prioridad solo si es mayor a la REAL
+  if (priority < thread->true_priority){
+    thread->priority = thread->true_priority;
+  }else{
+    thread->priority = priority;
+  }
+}
+
+void verificar_yield_a_ready_thread(void){
+  //Si hay algún thread ready, y tiene prioridad mayor
+  if (!list_empty(&ready_list) && thread_current()->priority < list_entry(list_begin(&ready_list), struct thread, elem)->priority){
+      thread_yield ();
+  }
+}
 
 
 
