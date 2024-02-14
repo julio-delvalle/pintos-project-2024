@@ -21,7 +21,6 @@ static thread_func acquire2_thread_func;
 void
 test_priority_donate_one (void)
 {
-  printf("HOla mundo-----\n\n");
   struct lock lock;
 
   /* This test does not work with the MLFQS. */

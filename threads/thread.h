@@ -97,11 +97,6 @@ struct thread
 
     uint64_t sleep_time;                /*Tiempo que debe dormir*/
 
-
-    struct list locks_owned_list; /* locks que el thread tiene actualmente (es holder actualmente) */
-    struct lock *waiting_lock; /* Lock al que el thread está esperando a que se libere*/
-
-
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -152,7 +147,5 @@ int thread_get_load_avg (void);
 void insertar_en_lista_espera(int64_t ticks);
 void remover_thread_durmiente(int64_t ticks);
 bool thread_priority_compare(const struct list_elem *a, const struct list_elem *b,void *aux UNUSED); /* Used to keep the ready list in effective priority order. */
-void thread_priority_donate (struct thread *thread, int priority);
-void verificar_yield_a_ready_thread(void);
 
 #endif /* threads/thread.h */
