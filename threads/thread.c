@@ -87,8 +87,7 @@ static tid_t allocate_tid (void);
 bool thread_priority_compare (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
 {
   //printf("dentro de thread_priority_compare\n");
-  return list_entry (a, struct thread, elem)->priority
-    > list_entry (b, struct thread, elem)->priority;
+  return list_entry (a, struct thread, elem)->priority > list_entry (b, struct thread, elem)->priority;
 }
 
 
