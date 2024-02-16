@@ -88,12 +88,19 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
+    int true_priority; /*Guarda priority con que se inició, para cuando cambie priority por donations*/
+
     struct list_elem allelem;           /* List element for all threads list. */
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
     uint64_t sleep_time;                /*Tiempo que debe dormir*/
+
+    struct list donations_received_list;
+    struct list locks_owned_list; /* locks que el thread tiene actualmente (es holder actualmente) */
+    struct lock *waiting_lock; /* Lock al que el thread está esperando a que se libere*/
+    struct list waiting_for_locks_list; /* Lista de los locks que está esperando/a los que les donó. */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -144,5 +151,17 @@ int thread_get_load_avg (void);
 //NUEVAS:
 void insertar_en_lista_espera(int64_t ticks);
 void remover_thread_durmiente(int64_t ticks);
+bool thread_priority_compare(const struct list_elem *a, const struct list_elem *b,void *aux UNUSED); /* Used to keep the ready list in effective priority order. */
+void thread_priority_donate (struct thread *thread, int priority);
+void shuffle_ready_thread(struct thread *thread);
+
+struct donation_received_elem {
+  //ELEMENTO que guarda el lock y el priority que me donaron
+  struct lock *lock;
+  int priority;
+  struct list_elem elem;
+};
+bool donation_received_elem_compare (const struct list_elem *a, const struct list_elem *b, void *aux);
+int get_highest_donation_prio_received(struct thread *thread);
 
 #endif /* threads/thread.h */
