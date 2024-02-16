@@ -90,8 +90,6 @@ bool thread_priority_compare (const struct list_elem *a, const struct list_elem 
   return list_entry (a, struct thread, elem)->priority > list_entry (b, struct thread, elem)->priority;
 }
 
-
-
 void insertar_en_lista_espera(int64_t ticks){
 
   //Deshabilitar interrupciones
@@ -134,6 +132,36 @@ void remover_thread_durmiente(int64_t ticks){
 }
 
 
+void thread_priority_donate (struct thread *thread, int priority){
+  //ASSERT (priority <= thread->priority);
+
+  //printf('priority donate\n');
+  //Le da la nueva prioridad solo si es mayor a la REAL
+  if (priority >= thread->true_priority)
+    {
+      thread->priority = priority;
+      //return true;
+    }
+  //return false;
+
+  /*if (thread == thread_current() && !list_empty (&ready_list)) {
+    struct thread *next = list_entry(list_begin(&ready_list), struct thread, elem);
+    if (next != NULL && next->priority > priority) {
+      thread_yield();
+    }
+  }*/
+}
+
+void shuffle_ready_thread (struct thread *thread)
+{
+  ASSERT (intr_get_level () == INTR_OFF);
+  ASSERT (!intr_context ());
+  ASSERT (thread->status == THREAD_READY);
+
+  list_remove(&thread->elem);
+  list_insert_ordered (&ready_list, &thread->elem, thread_priority_compare,
+                       NULL);
+}
 
 
 
@@ -577,6 +605,9 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->true_priority = priority;
   t->magic = THREAD_MAGIC;
+  list_init(&t->locks_owned_list);
+  list_init(&t->waiting_for_locks_list);
+  list_init(&t->donations_received_list);
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
