@@ -226,6 +226,13 @@ lock_acquire (struct lock *lock)
     //intentar darle priority del thread actual al holder del lock:
     thread_priority_donate(current_lock_holder, thread_current()->priority);
 
+    //Sin importar si la prioridad donada es la más alta donada, se guarda a la lista de donadas
+    struct donation_received_elem donation_elem;
+    donation_elem.lock = lock;
+    donation_elem.priority = thread_current()->priority;
+    //Guarda en la lista de donaciones del thread holder el elemento donado.
+    list_push_front(&current_lock_holder->donations_received_list, &donation_elem.elem);
+
     //guardar en nuestro thread que estamos esperando por este lock.
     thread_current()->waiting_lock = lock;
 
@@ -233,6 +240,8 @@ lock_acquire (struct lock *lock)
     lock->holder = thread_current ();
   }
 
+
+  // si sí estaba disponible, lock_try_acquire ya hizo lo necesario. Solo guardar que mi thread ya no espera al lock.
   thread_current()->waiting_lock = NULL;
 
   intr_set_level (old_level);
@@ -269,18 +278,23 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
-  thread_priority_donate(thread_current(), thread_current()->true_priority);
+  struct list_elem *e;
+    for (e = list_begin (&thread_current()->donations_received_list); e != list_end (&thread_current()->donations_received_list); e = list_next (e)) {
+      struct donation_received_elem *donation_elem = list_entry(e, struct donation_received_elem, elem);
+      if(donation_elem->lock == lock){
+        //Quita de la lista de donaciones recibidas la donación causada por el lock actual que se está liberando.
+        list_remove(e);
+      }
+    }
+
+  //Con la lista actualizada, obtiene la siguiente prioridad más alta
+  int next_priority = get_highest_donation_prio_received(thread_current());
+
+  //le coloca al thread la siguiente prio más alta.
+  thread_priority_donate(thread_current(), next_priority);
   lock->holder = NULL;
   sema_up (&lock->semaphore);
 
-  //list_remove (&lock->elem);
-
-
-  /*if (list_empty(&thread_current()->locks_owned_list)) {
-    // no more locks: there is no priority donors
-    // the original priority of the current thread
-  }*/
-  // FALTA aquí lock release
 }
 
 /* Returns true if the current thread holds LOCK, false

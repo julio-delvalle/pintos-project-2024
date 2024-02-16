@@ -90,6 +90,14 @@ bool thread_priority_compare (const struct list_elem *a, const struct list_elem 
   return list_entry (a, struct thread, elem)->priority > list_entry (b, struct thread, elem)->priority;
 }
 
+bool donation_received_elem_compare (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
+{
+  struct donation_received_elem *elem1 = list_entry(a, struct donation_received_elem, elem);
+  struct donation_received_elem *elem2 = list_entry(b, struct donation_received_elem, elem);
+  //printf("dentro de thread_priority_compare\n");
+  return elem1->priority > elem2->priority;
+}
+
 void insertar_en_lista_espera(int64_t ticks){
 
   //Deshabilitar interrupciones
@@ -137,19 +145,13 @@ void thread_priority_donate (struct thread *thread, int priority){
 
   //printf('priority donate\n');
   //Le da la nueva prioridad solo si es mayor a la REAL
-  if (priority >= thread->true_priority)
-    {
-      thread->priority = priority;
-      //return true;
-    }
+  if (priority >= thread->true_priority){
+    thread->priority = priority;
+    //return true;
+  }
+
   //return false;
 
-  /*if (thread == thread_current() && !list_empty (&ready_list)) {
-    struct thread *next = list_entry(list_begin(&ready_list), struct thread, elem);
-    if (next != NULL && next->priority > priority) {
-      thread_yield();
-    }
-  }*/
 }
 
 void shuffle_ready_thread (struct thread *thread)
@@ -162,6 +164,27 @@ void shuffle_ready_thread (struct thread *thread)
   list_insert_ordered (&ready_list, &thread->elem, thread_priority_compare,
                        NULL);
 }
+
+
+int get_highest_donation_prio_received(struct thread *thread){
+  // atraviesa la lista de donaciones de prio recibidas y retorna la más alta.
+  struct list *donations_received_list = &thread->donations_received_list;
+  int highest_priority = thread->true_priority;
+
+  if(!list_empty(donations_received_list)){
+    struct list_elem *e;
+    for (e = list_begin (donations_received_list); e != list_end (donations_received_list); e = list_next (e)) {
+      struct donation_received_elem *donation_elem = list_entry(e, struct donation_received_elem, elem);
+      if(donation_elem->priority > highest_priority){
+        highest_priority = donation_elem->priority;
+      }
+    }
+    return highest_priority;
+  }else{
+    return thread->true_priority;
+  }
+}
+
 
 
 

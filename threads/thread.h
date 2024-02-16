@@ -155,4 +155,13 @@ bool thread_priority_compare(const struct list_elem *a, const struct list_elem *
 void thread_priority_donate (struct thread *thread, int priority);
 void shuffle_ready_thread(struct thread *thread);
 
+struct donation_received_elem {
+  //ELEMENTO que guarda el lock y el priority que me donaron
+  struct lock *lock;
+  int priority;
+  struct list_elem elem;
+};
+bool donation_received_elem_compare (const struct list_elem *a, const struct list_elem *b, void *aux);
+int get_highest_donation_prio_received(struct thread *thread);
+
 #endif /* threads/thread.h */
