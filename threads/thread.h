@@ -153,12 +153,14 @@ void insertar_en_lista_espera(int64_t ticks);
 void remover_thread_durmiente(int64_t ticks);
 bool thread_priority_compare(const struct list_elem *a, const struct list_elem *b,void *aux UNUSED); /* Used to keep the ready list in effective priority order. */
 void thread_priority_donate (struct thread *thread, int priority);
+void thread_priority_revert_donate (struct thread *thread, struct lock *lock);
 void shuffle_ready_thread(struct thread *thread);
 
 struct donation_received_elem {
   //ELEMENTO que guarda el lock y el priority que me donaron
   struct lock *lock;
   int priority;
+  struct thread *thread;
   struct list_elem elem;
 };
 bool donation_received_elem_compare (const struct list_elem *a, const struct list_elem *b, void *aux);

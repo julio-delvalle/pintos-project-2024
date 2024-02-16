@@ -154,6 +154,10 @@ void thread_priority_donate (struct thread *thread, int priority){
 
 }
 
+void thread_priority_revert_donate (struct thread *thread, struct lock *lock){
+  //pendiente, ver si se usa
+}
+
 void shuffle_ready_thread (struct thread *thread)
 {
   ASSERT (intr_get_level () == INTR_OFF);

@@ -1,7 +1,20 @@
 {
     "files.associations": {
-        "*.inc": "c",
-        "exception": "c",
-        "debug.h": "c"
+        "*.tcc": "c",
+        "vector": "c",
+        "functional": "c",
+        "random": "c",
+        "fstream": "c",
+        "type_traits": "c",
+        "tuple": "c",
+        "array": "c",
+        "cstdio": "c",
+        "cwchar": "c",
+        "initializer_list": "c",
+        "new": "c",
+        "stdexcept": "c",
+        "system_error": "c",
+        "typeinfo": "c",
+        "utility": "c"
     }
 }
