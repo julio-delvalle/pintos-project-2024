@@ -26,6 +26,8 @@
    MODIFICATIONS.
 */
 
+#include "tests/threads/tests.h"
+
 #include "threads/synch.h"
 #include <stdio.h>
 #include <string.h>
@@ -217,21 +219,49 @@ lock_acquire (struct lock *lock)
 
   struct thread *current_lock_holder = lock->holder; // current holder thread
   struct semaphore *lock_semaphore = &lock->semaphore; // current holder thread
-
+  int nesting = 0;
+  bool test_nesting = true;
   //printf("sema try down de lock con value %d",lock_semaphore->value);
 
   if(!lock_try_acquire(lock)){
+    //msg('hola\n');
     //Si el lock no está disponible:
 
-    //intentar darle priority del thread actual al holder del lock:
-    thread_priority_donate(current_lock_holder, thread_current()->priority);
+    if(!test_nesting){
+      thread_priority_donate(current_lock_holder, thread_current()->priority);
 
-    //Sin importar si la prioridad donada es la más alta donada, se guarda a la lista de donadas
-    struct donation_received_elem donation_elem;
-    donation_elem.lock = lock;
-    donation_elem.priority = thread_current()->priority;
-    //Guarda en la lista de donaciones del thread holder el elemento donado.
-    list_push_front(&current_lock_holder->donations_received_list, &donation_elem.elem);
+      //Sin importar si la prioridad donada es la más alta donada, se guarda a la lista de donadas
+      struct donation_received_elem donation_elem;
+      donation_elem.lock = lock;
+      donation_elem.priority = thread_current()->priority;
+      //Guarda en la lista de donaciones del thread holder el elemento donado.
+      list_push_front(&current_lock_holder->donations_received_list, &donation_elem.elem);
+    }
+
+    //Donación de prioridad, como ciclo en caso de nesting.
+    //Dona al current holder, si el current_holder está esperando otro lock, se dona a su current_holder, y así enciclado.
+    while(test_nesting && current_lock_holder != NULL && nesting < 8 ){
+
+      //intentar darle priority del thread actual al holder del lock:
+      if(current_lock_holder->priority <= thread_current()->priority){
+        thread_priority_donate(current_lock_holder, thread_current()->priority);
+      }
+
+      //Sin importar si la prioridad donada es la más alta donada, se guarda a la lista de donadas
+      struct donation_received_elem donation_elem;
+      donation_elem.lock = lock;
+      donation_elem.priority = thread_current()->priority;
+      //Guarda en la lista de donaciones del thread holder el elemento donado.
+      list_push_front(&current_lock_holder->donations_received_list, &donation_elem.elem);
+
+      if(&current_lock_holder->waiting_lock->holder != NULL){  //Si waiting lock existe, es decir, está esperando por otro lock
+        current_lock_holder = current_lock_holder->waiting_lock->holder;   //El nuevo current_lock_holder es el del lock que está esperando el actual
+      }else{
+        current_lock_holder = NULL;
+      }
+      nesting++;
+    }
+
 
     //guardar en nuestro thread que estamos esperando por este lock.
     thread_current()->waiting_lock = lock;
@@ -275,26 +305,46 @@ lock_try_acquire (struct lock *lock)
 void
 lock_release (struct lock *lock)
 {
+  enum intr_level old_level;
+
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
+  old_level = intr_disable ();
+
+
+  int next_priority = PRI_MIN;
+
   struct list_elem *e;
-    for (e = list_begin (&thread_current()->donations_received_list); e != list_end (&thread_current()->donations_received_list); e = list_next (e)) {
-      struct donation_received_elem *donation_elem = list_entry(e, struct donation_received_elem, elem);
-      if(donation_elem->lock == lock){
-        //Quita de la lista de donaciones recibidas la donación causada por el lock actual que se está liberando.
-        list_remove(e);
-      }
+  for (e = list_begin (&lock->holder->donations_received_list); e != list_end (&lock->holder->donations_received_list); e = list_next (e)) {
+    struct donation_received_elem *donation_elem = list_entry(e, struct donation_received_elem, elem);
+    struct lock *donation_elem_lock = donation_elem->lock;
+    if(donation_elem_lock == lock){
+      //Quita de la lista de donaciones recibidas la donación causada por el lock actual que se está liberando.
+      //list_pop_front(&thread_current()->donations_received_list);
+      list_remove(e);
+      //break;
     }
+  }
+  /*if(!list_empty(&thread_current()->donations_received_list)){
+    list_pop_front(&thread_current()->donations_received_list);
+  }*/
+
+
 
   //Con la lista actualizada, obtiene la siguiente prioridad más alta
-  int next_priority = get_highest_donation_prio_received(thread_current());
+  next_priority = get_highest_donation_prio_received(thread_current());
+  //next_priority = thread_current()->true_priority;
 
   //le coloca al thread la siguiente prio más alta.
   thread_priority_donate(thread_current(), next_priority);
+
   lock->holder = NULL;
   sema_up (&lock->semaphore);
 
+
+
+  intr_set_level (old_level);
 }
 
 /* Returns true if the current thread holds LOCK, false

@@ -3,7 +3,7 @@
    High-priority thread H then blocks on acquiring lock B.  Thus,
    thread H donates its priority to M, which in turn donates it
    to thread L.
-   
+
    Based on a test originally submitted for Stanford's CS 140 in
    winter 1999 by Matt Franklin <startled@leland.stanford.edu>,
    Greg Hutchins <gmh@leland.stanford.edu>, Yu Ping Hu
@@ -15,7 +15,7 @@
 #include "threads/synch.h"
 #include "threads/thread.h"
 
-struct locks 
+struct locks
   {
     struct lock *a;
     struct lock *b;
@@ -25,7 +25,7 @@ static thread_func medium_thread_func;
 static thread_func high_thread_func;
 
 void
-test_priority_donate_nest (void) 
+test_priority_donate_nest (void)
 {
   struct lock a, b;
   struct locks locks;
@@ -36,36 +36,48 @@ test_priority_donate_nest (void)
   /* Make sure our priority is the default. */
   ASSERT (thread_get_priority () == PRI_DEFAULT);
 
+  msg("---- thread (%s) init lock a\n",thread_name());
   lock_init (&a);
+  msg("---- thread (%s) init lock b\n",thread_name());
   lock_init (&b);
 
+  //printf('thread (%s) acquire a\n',thread_name());
+  msg("---- thread (%s) acquire a\n",thread_name());
   lock_acquire (&a);
 
   locks.a = &a;
   locks.b = &b;
+  msg("---- thread create medium \n");
   thread_create ("medium", PRI_DEFAULT + 1, medium_thread_func, &locks);
   thread_yield ();
-  msg ("Low thread should have priority %d.  Actual priority: %d.",
+  msg ("Low thread (%s) should have priority %d.  Actual priority: %d.", thread_name(),
        PRI_DEFAULT + 1, thread_get_priority ());
 
+msg("---- thread create high\n");
   thread_create ("high", PRI_DEFAULT + 2, high_thread_func, &b);
   thread_yield ();
-  msg ("Low thread should have priority %d.  Actual priority: %d.",
+  msg ("Low thread (%s) should have priority %d.  Actual priority: %d.", thread_name(),
        PRI_DEFAULT + 2, thread_get_priority ());
 
+  msg("---- thread (%s) release a\n",thread_name());
   lock_release (&a);
+  msg("---- DESPUES de thread (%s) release a\n",thread_name());
   thread_yield ();
-  msg ("Medium thread should just have finished.");
-  msg ("Low thread should have priority %d.  Actual priority: %d.",
+  msg ("Medium thread (%s) should just have finished.",thread_name());
+  msg ("Low thread (%s) should have priority %d.  Actual priority: %d.",thread_name(),
        PRI_DEFAULT, thread_get_priority ());
 }
 
 static void
-medium_thread_func (void *locks_) 
+medium_thread_func (void *locks_)
 {
   struct locks *locks = locks_;
 
+  //printf('thread (%s) acquire a\n',thread_name());
+  msg("---- thread (%s) acquire b\n",thread_name());
   lock_acquire (locks->b);
+  //printf('thread (%s) acquire b\n',thread_name());
+  msg("---- thread (%s) acquire a\n",thread_name());
   lock_acquire (locks->a);
 
   msg ("Medium thread should have priority %d.  Actual priority: %d.",
@@ -83,10 +95,11 @@ medium_thread_func (void *locks_)
 }
 
 static void
-high_thread_func (void *lock_) 
+high_thread_func (void *lock_)
 {
   struct lock *lock = lock_;
 
+  msg("---- thread (%s) acquire b\n",thread_name());
   lock_acquire (lock);
   msg ("High thread got the lock.");
   lock_release (lock);
