@@ -166,7 +166,7 @@ void shuffle_ready_thread (struct thread *thread)
 }
 
 
-int get_highest_donation_prio_received(struct thread *thread){
+int get_highest_donation_prio_received(struct thread *thread, struct lock *lock){
   // atraviesa la lista de donaciones de prio recibidas y retorna la más alta.
   struct list *donations_received_list = &thread->donations_received_list;
   int highest_priority = thread->true_priority;
@@ -175,14 +175,12 @@ int get_highest_donation_prio_received(struct thread *thread){
     struct list_elem *e;
     for (e = list_begin (donations_received_list); e != list_end (donations_received_list); e = list_next (e)) {
       struct donation_received_elem *donation_elem = list_entry(e, struct donation_received_elem, elem);
-      if(donation_elem->priority > highest_priority){
+      if(donation_elem->priority > highest_priority && donation_elem->lock != lock){
         highest_priority = donation_elem->priority;
       }
     }
-    return highest_priority;
-  }else{
-    return thread->true_priority;
   }
+  return highest_priority;
 }
 
 
