@@ -26,6 +26,8 @@
    MODIFICATIONS.
 */
 
+#include "tests/threads/tests.h"
+
 #include "threads/synch.h"
 #include <stdio.h>
 #include <string.h>
@@ -227,6 +229,8 @@ lock_acquire (struct lock *lock)
     //Si el lock no está disponible:
 
     if(!test_nesting){
+
+
       thread_priority_donate(current_lock_holder, thread_current()->priority);
 
       //Sin importar si la prioridad donada es la más alta donada, se guarda a la lista de donadas
@@ -235,6 +239,11 @@ lock_acquire (struct lock *lock)
       donation_elem.priority = thread_current()->priority;
       //Guarda en la lista de donaciones del thread holder el elemento donado.
       list_push_front(&current_lock_holder->donations_received_list, &donation_elem.elem);
+
+
+
+
+
     }else{
       struct lock *lock_causing_donation = lock;
       struct thread *thread_donating = thread_current();
@@ -309,28 +318,34 @@ lock_try_acquire (struct lock *lock)
 void
 lock_release (struct lock *lock)
 {
+  enum intr_level old_level;
+
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
+  int next_priority = thread_current()->true_priority;
 
-  /*struct list_elem *e;
-    for (e = list_begin (&thread_current()->donations_received_list); e != list_end (&thread_current()->donations_received_list); e = list_next (e)) {
-      struct donation_received_elem *donation_elem = list_entry(e, struct donation_received_elem, elem);
-      if(donation_elem->lock == lock){
-        //Quita de la lista de donaciones recibidas la donación causada por el lock actual que se está liberando.
-        list_remove(e);
+  struct list_elem *e;
+      for (e = list_begin (&thread_current()->donations_received_list); e != list_end (&thread_current()->donations_received_list); e = list_next (e)) {
+        struct donation_received_elem *donation_elem = list_entry(e, struct donation_received_elem, elem);
+        if(donation_elem->lock == lock){
+          //Quita de la lista de donaciones recibidas la donación causada por el lock actual que se está liberando.
+          list_remove(e);
+        }
       }
-    }*/
 
-  //Con la lista actualizada, obtiene la siguiente prioridad más alta
-  //int next_priority = get_highest_donation_prio_received(thread_current(), lock);
+    //Con la lista actualizada, obtiene la siguiente prioridad más alta
+    next_priority = get_highest_donation_prio_received(thread_current(), lock);
+
 
   //le coloca al thread la siguiente prio más alta.
-  //thread_priority_donate(thread_current(), next_priority);
-  thread_priority_donate(thread_current(), thread_current()->true_priority);
+  thread_priority_donate(thread_current(), next_priority);
 
   lock->holder = NULL;
   sema_up (&lock->semaphore);
 
+
+
+  intr_set_level (old_level);
 }
 
 /* Returns true if the current thread holds LOCK, false

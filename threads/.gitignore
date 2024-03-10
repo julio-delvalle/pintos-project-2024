@@ -1,3 +1,6 @@
-build
+build/devices
+build/tests
+build/lib
+build/threads
 bochsrc.txt
 bochsout.txt
