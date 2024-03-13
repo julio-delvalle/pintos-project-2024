@@ -22,16 +22,14 @@
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
-
-void parse_args(const char *line, char *argv[], int argc);
-size_t calc_argv_size(char **argv, int argc);
-
-
-
-// ----------- SE movio hacia arriba
-
 static bool setup_stack (void **esp);
+
+//Nuevas funciones para userprog:
 static bool install_page (void *upage, void *kpage, bool writable);
+void parse_args(char *line, char *argv[], int argc);
+size_t calc_argv_size(char **argv, int argc);
+int count_args(char *line);
+
 
 
 /* Create a minimal stack by mapping a zeroed page at the top of
@@ -94,7 +92,7 @@ struct process_data {
 } process_data;
 
 /* Function that parses command line input */
-void parse_args(const char *line, char *argv[], int argc) {
+void parse_args(char *line, char *argv[], int argc) {
 
   char *token, *save_ptr;
   int count = 0;
@@ -114,7 +112,7 @@ void parse_args(const char *line, char *argv[], int argc) {
 }
 
 /* Function that counts args in command line */
-int count_args(const char *line)
+int count_args(char *line)
 {
   int argc = 0;
   char *token, *save_ptr;
@@ -132,8 +130,9 @@ size_t calc_argv_size(char **argv, int argc)
 {
   size_t size = 0;
   int i = 0;
-  for(i ; i < argc ; i++)
+  for(i ; i < argc ; i++){
     size += strlen(argv[i]) + 1;
+  }
   size += (4 - size % 4) % 4; // Alignment
   return size;
 }
@@ -209,7 +208,7 @@ process_execute (const char *file_name)
 
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name_token, PRI_DEFAULT, start_process, args_data);
+  tid = thread_create (args_data->file_name, PRI_DEFAULT, start_process, args_data);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
   return tid;
@@ -238,7 +237,7 @@ start_process (void *process_data_arg)
     thread_exit ();
 
   /* Setup user stack*/
-  //setup_stack(&if_.esp);
+  setup_stack(&if_.esp);
   //setup_stack2(process_data->argc, process_data->argv, &if_.esp);
 
   /* Start the user process by simulating a return from an
@@ -263,8 +262,9 @@ start_process (void *process_data_arg)
 int
 process_wait (tid_t child_tid UNUSED)
 {
-  //return -1;
-  while(true);
+  while(true){
+    thread_yield();
+  }
 }
 
 /* Free the current process's resources. */

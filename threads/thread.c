@@ -111,7 +111,7 @@ void remover_thread_durmiente(int64_t ticks){
     struct thread *thread_lista_espera = list_entry(iter, struct thread, elem);
 
     //Si el tiempo actual es mayor al tiempo que el thread debe estar dormido, entonces debe salir:
-    if(ticks >= thread_lista_espera->sleep_time){
+    if((uint64_t)ticks >= thread_lista_espera->sleep_time){
       //quitar de lista espera y agregar a ready_list:
       iter = list_remove(iter);
       thread_unblock(thread_lista_espera);
