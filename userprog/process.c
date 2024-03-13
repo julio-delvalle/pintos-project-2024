@@ -23,6 +23,69 @@
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
+void parse_args(const char *line, char *argv[], int argc);
+size_t calc_argv_size(char **argv, int argc);
+
+
+
+// ----------- SE movio hacia arriba
+
+static bool setup_stack (void **esp);
+static bool install_page (void *upage, void *kpage, bool writable);
+
+
+/* Create a minimal stack by mapping a zeroed page at the top of
+   user virtual memory. */
+static bool
+setup_stack (void **esp)
+{
+  uint8_t *kpage;
+  bool success = false;
+
+  kpage = palloc_get_page (PAL_USER | PAL_ZERO);
+  if (kpage != NULL)
+    {
+      success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
+      if (success)
+        *esp = PHYS_BASE - 12;
+      else
+        palloc_free_page (kpage);
+    }
+  return success;
+}
+
+/* Adds a mapping from user virtual address UPAGE to kernel
+   virtual address KPAGE to the page table.
+   If WRITABLE is true, the user process may modify the page;
+   otherwise, it is read-only.
+   UPAGE must not already be mapped.
+   KPAGE should probably be a page obtained from the user pool
+   with palloc_get_page().
+   Returns true on success, false if UPAGE is already mapped or
+   if memory allocation fails. */
+static bool
+install_page (void *upage, void *kpage, bool writable)
+{
+  struct thread *t = thread_current ();
+
+  /* Verify that there's not already a page at that virtual
+     address, then map our page there. */
+  return (pagedir_get_page (t->pagedir, upage) == NULL
+          && pagedir_set_page (t->pagedir, upage, kpage, writable));
+}
+
+
+
+/////--------------------------
+
+
+
+
+
+
+
+
+
 /* Defining struct of data used for process stack setup */
 struct process_data {
   char* file_name;
@@ -34,19 +97,19 @@ struct process_data {
 void parse_args(const char *line, char *argv[], int argc) {
 
   char *token, *save_ptr;
-  int argc = 0;
+  int count = 0;
 
   // Getting arguments, increasing args size and checking current size
 
-  for (token = strtok_r(line, " ", &save_ptr); token != NULL && argc < MAX_ARGS; token = strtok_r(NULL, " ", &save_ptr))
+  for (token = strtok_r(line, " ", &save_ptr); token != NULL && count < MAX_ARGS; token = strtok_r(NULL, " ", &save_ptr))
   {
     size_t arg_len = strlen(token) + 1; // Consider null terminator
-    argv[argc] = palloc_get_page(0);
-    if (argv[argc] == NULL) {
+    argv[count] = palloc_get_page(0);
+    if (argv[count] == NULL) {
       return TID_ERROR;
     }
-    strlcpy(argv[argc], token, arg_len);
-    argc++;
+    strlcpy(argv[count], token, arg_len);
+    count++;
   }
 }
 
@@ -76,7 +139,7 @@ size_t calc_argv_size(char **argv, int argc)
 }
 
 /* Function for setting up user stack */
-static void setup_stack(int argc, char** argv, void **stackpointer)
+static void setup_stack2(int argc, char** argv, void **stackpointer)
 {
   int i = 0;
   for(i; i < argc ; i++)
@@ -99,7 +162,7 @@ process_execute (const char *file_name)
   * MAX_ARGS = MAX_PAGE_SIZE/MEAN_ARG_SIZE = 128
   */
 
-  char *fn_copy, *token_ptr, *file_name_token;
+  char *fn_copy, *token_ptr, *fn_copy2;
   tid_t tid;
   struct process_data *process_data_struct;
 
@@ -111,12 +174,14 @@ process_execute (const char *file_name)
   strlcpy (fn_copy, file_name, PGSIZE);
 
   // Get First token
-  char *file_name_token = strtok_r(fn_copy, " ", &token_ptr);
-  if (file_name_token == NULL)
+  fn_copy2 = palloc_get_page (0);
+  if (fn_copy2 == NULL)
   {
-    palloc_free_page (fn_copy);
+    palloc_free_page (fn_copy2);
     return TID_ERROR;  // No args
   }
+  strlcpy (fn_copy2, file_name, PGSIZE);
+  char *file_name_token = strtok_r(fn_copy2, " ", &token_ptr);
 
 
   /* Counting arguments */
@@ -173,7 +238,8 @@ start_process (void *process_data_arg)
     thread_exit ();
 
   /* Setup user stack*/
-  setup_stack(process_data->argc, process_data->argv, &if_.esp);
+  //setup_stack(&if_.esp);
+  //setup_stack2(process_data->argc, process_data->argv, &if_.esp);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -307,7 +373,6 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static bool setup_stack (void **esp);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
@@ -430,7 +495,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
 /* load() helpers. */
 
-static bool install_page (void *upage, void *kpage, bool writable);
 
 /* Checks whether PHDR describes a valid, loadable segment in
    FILE and returns true if so, false otherwise. */
@@ -536,42 +600,3 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   return true;
 }
 
-/* Create a minimal stack by mapping a zeroed page at the top of
-   user virtual memory. */
-static bool
-setup_stack (void **esp)
-{
-  uint8_t *kpage;
-  bool success = false;
-
-  kpage = palloc_get_page (PAL_USER | PAL_ZERO);
-  if (kpage != NULL)
-    {
-      success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-      if (success)
-        *esp = PHYS_BASE - 12;
-      else
-        palloc_free_page (kpage);
-    }
-  return success;
-}
-
-/* Adds a mapping from user virtual address UPAGE to kernel
-   virtual address KPAGE to the page table.
-   If WRITABLE is true, the user process may modify the page;
-   otherwise, it is read-only.
-   UPAGE must not already be mapped.
-   KPAGE should probably be a page obtained from the user pool
-   with palloc_get_page().
-   Returns true on success, false if UPAGE is already mapped or
-   if memory allocation fails. */
-static bool
-install_page (void *upage, void *kpage, bool writable)
-{
-  struct thread *t = thread_current ();
-
-  /* Verify that there's not already a page at that virtual
-     address, then map our page there. */
-  return (pagedir_get_page (t->pagedir, upage) == NULL
-          && pagedir_set_page (t->pagedir, upage, kpage, writable));
-}
