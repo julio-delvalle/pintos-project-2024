@@ -1,10 +1,6 @@
 name: 'Calificación de las fases del proyecto'
 
-on:
-  push:
-    branches: [ "main", "master", "develop" ]
-  pull_request:
-    branches: [ "main", "master", "develop" ]
+on: ["push", "pull_request"]
 
 jobs:
   threads:
