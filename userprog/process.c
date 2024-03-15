@@ -18,10 +18,202 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
+#include "threads/synch.h" // Para poder usar sema_up y sema_down
+
 #define MAX_ARGS 128
+#define MAX_ARG_LENGTH 128 //el argumento solo puede tener 128 caracteres
 
 static thread_func start_process NO_RETURN;
-static bool load (const char *cmdline, void (**eip) (void), void **esp);
+static bool load (void *process_data_arg, void (**eip) (void), void **esp);
+static bool setup_stack (int argc, char* full_cmdline, void **esp);
+
+//Nuevas funciones para userprog:
+static bool install_page (void *upage, void *kpage, bool writable);
+void parse_args(char *line, char *argv[], int argc);
+size_t calc_argv_size(char **argv, int argc);
+int count_args(char *line);
+
+
+
+/* Create a minimal stack by mapping a zeroed page at the top of
+   user virtual memory. */
+static bool
+setup_stack (int argc, char* full_cmdline, void **esp)
+{
+  uint8_t *kpage;
+  bool success = false;
+
+  kpage = palloc_get_page (PAL_USER | PAL_ZERO);
+  if (kpage != NULL)
+    {
+      success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
+      if (success){
+        *esp = PHYS_BASE;
+
+        //printf("esp: %x\n", *esp);
+
+        unsigned long int argument_adresses[argc];
+        char *token, *save_ptr;
+        int saved_arguments = 0;
+
+        //DEBUG:: QUITAR
+        //uintptr_t start = (uintptr_t)*esp;
+
+
+
+        //Paso 2: obtiene los argumentos, y luego los agrega en orden inverso
+        char *arguments[argc]; //array que va a tener los argumentos
+        for (token = strtok_r(full_cmdline, " ", &save_ptr); token != NULL && saved_arguments < MAX_ARGS; token = strtok_r(NULL, " ", &save_ptr)){
+          arguments[saved_arguments] = malloc((strlen(token)+1)*sizeof(char));
+          snprintf(arguments[saved_arguments],strlen(token)+1, "%s", token);
+          saved_arguments++;
+        }
+        for (int i=0;i<saved_arguments;i++){
+          token = arguments[(saved_arguments-1) - i];
+          *esp -= (strlen(token)+1); //Mueve el stack pointer el tamaño del string
+          //printf("esp: %x\n", *esp);
+          memcpy(*esp, token, strlen(token)+1); //Agrega el string al stack
+          argument_adresses[i] = (unsigned long int)*esp; //guarda la dirección del arg.
+        }
+
+
+        //Paso 3, word align:
+        unsigned long int word_align = (unsigned long int)*esp % 4;
+        *esp -= word_align; //Va a mover el esp 0, 1, 2 o 3;
+        memset(*esp, 0x0, word_align);
+
+
+        //Paso 4, argumento de 4 bytes de 0s
+        *esp -= 4;
+        memset(*esp, 0x0, 4);
+
+        //Paso 5: guardar las direcciones al stack. Recordar que las direcciones se fueron guardando en argument_adressesi
+        for (int i = 0; i < saved_arguments; i++){
+          *esp -= sizeof(char*);
+          memcpy(*esp, &argument_adresses[i], sizeof(char*));
+        }
+
+
+        //Paso 6: guardar address de argv[0] ¿¿¿QUÉ ES ESTO??? Address del primer argumento?
+        unsigned long int argument_start_address = (unsigned long int)*esp;
+        *esp -= sizeof(char**);
+        memcpy(*esp, &argument_start_address, sizeof(char**));
+
+        //Paso 7 guardar número de argumentls
+        *esp -= 4;
+        memcpy(*esp, &argc, 4); //argc es un int que viene como argumento de setup_stack;
+
+
+        //Paso 8: guardar null pointer como return address
+        *esp -= sizeof(char**);
+        memset(*esp, 0, sizeof(char**));
+
+        //DEBUG:: QUITAR
+        /*char buf[start - (uint32_t)*esp + 1];
+        memcpy(buf, *esp, start - (uint32_t)*esp);
+        hex_dump((int)*esp, buf, start - (uintptr_t)*esp, true);*/
+
+      }else{
+        palloc_free_page (kpage);
+      }
+    }
+  return success;
+}
+
+/* Adds a mapping from user virtual address UPAGE to kernel
+   virtual address KPAGE to the page table.
+   If WRITABLE is true, the user process may modify the page;
+   otherwise, it is read-only.
+   UPAGE must not already be mapped.
+   KPAGE should probably be a page obtained from the user pool
+   with palloc_get_page().
+   Returns true on success, false if UPAGE is already mapped or
+   if memory allocation fails. */
+static bool
+install_page (void *upage, void *kpage, bool writable)
+{
+  struct thread *t = thread_current ();
+
+  /* Verify that there's not already a page at that virtual
+     address, then map our page there. */
+  return (pagedir_get_page (t->pagedir, upage) == NULL
+          && pagedir_set_page (t->pagedir, upage, kpage, writable));
+}
+
+
+
+/////--------------------------
+
+
+
+
+
+
+
+
+
+/* Defining struct of data used for process stack setup */
+struct process_data {
+  char* file_name;
+  int argc;
+  char **argv;
+  char* full_cmdline;
+} process_data;
+
+/* Function that parses command line input */
+void parse_args(char *line, char *argv[], int argc) {
+  //printf("dentro parse args, con %d args\n", argc);
+
+  char *token, *save_ptr;
+  int count = 0;
+
+  // Getting arguments, increasing args size and checking current size
+  //argv = malloc(argc*sizeof(char*));
+
+  for (token; token != NULL && count < MAX_ARGS; token = strtok_r(NULL, " ", &save_ptr))
+  {
+    if(count != 0){
+      //printf("token %s\n",token);
+      size_t arg_len = strlen(token) + 1; // Consider null terminator
+
+    }
+    //argv[count] = palloc_get_page(0);
+    /*if (argv[count] == NULL) {
+      return TID_ERROR;
+    }
+    strlcpy(argv[count], token, arg_len);*/
+    count++;
+  }
+}
+
+/* Function that counts args in command line */
+int count_args(char *line)
+{
+  int argc = 0;
+  char *token, *save_ptr;
+
+  for (token = strtok_r(line, " ", &save_ptr) ; token != NULL ; token = strtok_r(NULL, " ", &save_ptr)){
+    //printf("counted %d args\n", argc);
+    argc++;
+  }
+    // Counting args
+
+  return argc;
+
+}
+
+/* Calculate size of all elements of argv */
+size_t calc_argv_size(char **argv, int argc)
+{
+  size_t size = 0;
+  int i = 0;
+  for(i ; i < argc ; i++){
+    size += strlen(argv[i]) + 1;
+  }
+  size += (4 - size % 4) % 4; // Alignment
+  return size;
+}
+
 
 /* Defining struct of data used for process stack setup */
 struct process_data {
@@ -99,9 +291,16 @@ process_execute (const char *file_name)
   * MAX_ARGS = MAX_PAGE_SIZE/MEAN_ARG_SIZE = 128
   */
 
-  char *fn_copy, *token_ptr, *file_name_token;
+  char *fn_copy, *token_ptr, *fn_copy2, *fn_copy3;
   tid_t tid;
   struct process_data *process_data_struct;
+
+  /* Allocationg memory for process_data struct */
+  struct process_data *args_data = palloc_get_page(sizeof(struct process_data));
+  /*if (args_data == NULL) {
+      palloc_free_page(argv);
+      return TID_ERROR;
+  }*/
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
@@ -109,6 +308,49 @@ process_execute (const char *file_name)
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
+    /* Counting arguments */
+  int argc = count_args(fn_copy);
+
+  // Get First token
+  fn_copy2 = palloc_get_page (0);
+  if (fn_copy2 == NULL)
+  {
+    palloc_free_page (fn_copy2);
+    return TID_ERROR;  // No args
+  }
+  strlcpy (fn_copy2, file_name, PGSIZE);
+  args_data->file_name = strtok_r(fn_copy2, " ", &token_ptr);
+  //printf("Se obtuvo file_name_token con valor %s\n",args_data->file_name);
+
+
+
+  args_data->full_cmdline = palloc_get_page (0);
+  if (args_data->full_cmdline == NULL)
+  return TID_ERROR;
+  strlcpy (args_data->full_cmdline, file_name, PGSIZE);
+
+
+
+
+  /* Parse file_name and arguments */
+  char **argv = palloc_get_page(argc*sizeof(char *)); // Get memmory for arguments array
+  if (argv == NULL) {
+    palloc_free_page(fn_copy);
+    return TID_ERROR;
+  }
+  //parse_args(fn_copy3, argv, argc);
+
+
+
+  /* Assing data */
+  args_data->argc = argc;
+  //args_data->file_name = malloc(sizeof(file_name_token));
+  //strlcpy(args_data->file_name, file_name_token, sizeof(file_name_token));
+  //args_data->file_name = file_name_token;
+  args_data->argv = argv;
+
+  //printf("se creó args_data con argc %d , file_name %s , argv %d\n", args_data->argc, args_data->file_name, args_data->argv);
+
 
   // Get First token
   char *file_name_token = strtok_r(fn_copy, " ", &token_ptr);
@@ -144,7 +386,7 @@ process_execute (const char *file_name)
 
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name_token, PRI_DEFAULT, start_process, args_data);
+  tid = thread_create (args_data->file_name, PRI_DEFAULT, start_process, args_data);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
   return tid;
@@ -165,15 +407,13 @@ start_process (void *process_data_arg)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
+  success = load (process_data, &if_.eip, &if_.esp);
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success)
     thread_exit ();
 
-  /* Setup user stack*/
-  setup_stack(process_data->argc, process_data->argv, &if_.esp);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -197,8 +437,7 @@ start_process (void *process_data_arg)
 int
 process_wait (tid_t child_tid UNUSED)
 {
-  //return -1;
-  while(true);
+  sema_down(&thread_current()->wait_child_sema);
 }
 
 /* Free the current process's resources. */
@@ -225,7 +464,7 @@ process_exit (void)
       pagedir_destroy (pd);
     }
   // Process Termination msg
-  printf ("%s: exit(%d)\n", cur->name, cur->status);
+  printf ("%s: exit(%d)\n", cur->name, cur->exit_status);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -307,7 +546,6 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static bool setup_stack (void **esp);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
@@ -318,8 +556,9 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
    and its initial stack pointer into *ESP.
    Returns true if successful, false otherwise. */
 bool
-load (const char *file_name, void (**eip) (void), void **esp)
+load (void *process_data_arg, void (**eip) (void), void **esp)
 {
+  struct process_data *process_data = (struct process_data *) process_data_arg;
   struct thread *t = thread_current ();
   struct Elf32_Ehdr ehdr;
   struct file *file = NULL;
@@ -334,10 +573,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
-  file = filesys_open (file_name);
+  file = filesys_open (process_data->file_name);
   if (file == NULL)
     {
-      printf ("load: %s: open failed\n", file_name);
+      printf ("load: %s: open failed\n", process_data->file_name);
       goto done;
     }
 
@@ -350,7 +589,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
       || ehdr.e_phentsize != sizeof (struct Elf32_Phdr)
       || ehdr.e_phnum > 1024)
     {
-      printf ("load: %s: error loading executable\n", file_name);
+      printf ("load: %s: error loading executable\n", process_data->file_name);
       goto done;
     }
 
@@ -414,7 +653,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
     }
 
   /* Set up stack. */
-  if (!setup_stack (esp))
+  if (!setup_stack (process_data->argc, process_data->full_cmdline, esp))
     goto done;
 
   /* Start address. */
@@ -430,7 +669,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
 /* load() helpers. */
 
-static bool install_page (void *upage, void *kpage, bool writable);
 
 /* Checks whether PHDR describes a valid, loadable segment in
    FILE and returns true if so, false otherwise. */
@@ -536,42 +774,3 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
   return true;
 }
 
-/* Create a minimal stack by mapping a zeroed page at the top of
-   user virtual memory. */
-static bool
-setup_stack (void **esp)
-{
-  uint8_t *kpage;
-  bool success = false;
-
-  kpage = palloc_get_page (PAL_USER | PAL_ZERO);
-  if (kpage != NULL)
-    {
-      success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-      if (success)
-        *esp = PHYS_BASE - 12;
-      else
-        palloc_free_page (kpage);
-    }
-  return success;
-}
-
-/* Adds a mapping from user virtual address UPAGE to kernel
-   virtual address KPAGE to the page table.
-   If WRITABLE is true, the user process may modify the page;
-   otherwise, it is read-only.
-   UPAGE must not already be mapped.
-   KPAGE should probably be a page obtained from the user pool
-   with palloc_get_page().
-   Returns true on success, false if UPAGE is already mapped or
-   if memory allocation fails. */
-static bool
-install_page (void *upage, void *kpage, bool writable)
-{
-  struct thread *t = thread_current ();
-
-  /* Verify that there's not already a page at that virtual
-     address, then map our page there. */
-  return (pagedir_get_page (t->pagedir, upage) == NULL
-          && pagedir_set_page (t->pagedir, upage, kpage, writable));
-}

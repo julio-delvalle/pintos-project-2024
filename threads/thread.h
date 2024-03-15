@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "threads/synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -97,10 +98,11 @@ struct thread
 
     uint64_t sleep_time;                /*Tiempo que debe dormir*/
 
-    struct list donations_received_list;
-    struct list locks_owned_list; /* locks que el thread tiene actualmente (es holder actualmente) */
-    struct lock *waiting_lock; /* Lock al que el thread está esperando a que se libere*/
-    struct list waiting_for_locks_list; /* Lista de los locks que está esperando/a los que les donó. */
+    // PARA USERPROG
+    struct semaphore wait_child_sema;      //Semaphore para hacer que el thread espere si hay childs que no han terminado
+    struct thread* parent;  //puntero al thread padre
+    struct list children_list;  //lista de threads
+    enum thread_status exit_status;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -151,18 +153,5 @@ int thread_get_load_avg (void);
 //NUEVAS:
 void insertar_en_lista_espera(int64_t ticks);
 void remover_thread_durmiente(int64_t ticks);
-bool thread_priority_compare(const struct list_elem *a, const struct list_elem *b,void *aux UNUSED); /* Used to keep the ready list in effective priority order. */
-void thread_priority_donate (struct thread *thread, int priority);
-void shuffle_ready_thread(struct thread *thread);
-
-struct donation_received_elem {
-  //ELEMENTO que guarda el lock y el priority que me donaron
-  struct lock *lock;
-  int priority;
-  struct thread *thread;
-  struct list_elem elem;
-};
-bool donation_received_elem_compare (const struct list_elem *a, const struct list_elem *b, void *aux);
-int get_highest_donation_prio_received(struct thread *thread, struct lock *lock);
 
 #endif /* threads/thread.h */

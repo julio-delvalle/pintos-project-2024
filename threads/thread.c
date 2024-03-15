@@ -82,22 +82,6 @@ static tid_t allocate_tid (void);
 
 
 //NUEVAS:
-
-/* Used to keep the ready list in effective priority order. */
-bool thread_priority_compare (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
-{
-  //printf("dentro de thread_priority_compare\n");
-  return list_entry (a, struct thread, elem)->priority > list_entry (b, struct thread, elem)->priority;
-}
-
-bool donation_received_elem_compare (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
-{
-  struct donation_received_elem *elem1 = list_entry(a, struct donation_received_elem, elem);
-  struct donation_received_elem *elem2 = list_entry(b, struct donation_received_elem, elem);
-  //printf("dentro de thread_priority_compare\n");
-  return elem1->priority > elem2->priority;
-}
-
 void insertar_en_lista_espera(int64_t ticks){
 
   //Deshabilitar interrupciones
@@ -119,7 +103,6 @@ void insertar_en_lista_espera(int64_t ticks){
 
 void remover_thread_durmiente(int64_t ticks){
 
-  //Llamada deste timer_interrupt () en timer.c
   //cada timer interrupt verificar si ya se puede regresar el thread a ready_list:
 
   //Iterando sobre lista_espera:
@@ -128,7 +111,7 @@ void remover_thread_durmiente(int64_t ticks){
     struct thread *thread_lista_espera = list_entry(iter, struct thread, elem);
 
     //Si el tiempo actual es mayor al tiempo que el thread debe estar dormido, entonces debe salir:
-    if(ticks >= thread_lista_espera->sleep_time){
+    if((uint64_t)ticks >= thread_lista_espera->sleep_time){
       //quitar de lista espera y agregar a ready_list:
       iter = list_remove(iter);
       thread_unblock(thread_lista_espera);
@@ -139,49 +122,6 @@ void remover_thread_durmiente(int64_t ticks){
   }
 }
 
-
-void thread_priority_donate (struct thread *thread, int priority){
-  //ASSERT (priority <= thread->priority);
-
-  //printf('priority donate\n');
-  //Le da la nueva prioridad solo si es mayor a la REAL
-  if (priority >= thread->true_priority){
-    thread->priority = priority;
-    //return true;
-  }
-
-  //return false;
-
-}
-
-void shuffle_ready_thread (struct thread *thread)
-{
-  ASSERT (intr_get_level () == INTR_OFF);
-  ASSERT (!intr_context ());
-  ASSERT (thread->status == THREAD_READY);
-
-  list_remove(&thread->elem);
-  list_insert_ordered (&ready_list, &thread->elem, thread_priority_compare,
-                       NULL);
-}
-
-
-int get_highest_donation_prio_received(struct thread *thread, struct lock *lock){
-  // atraviesa la lista de donaciones de prio recibidas y retorna la más alta.
-  struct list *donations_received_list = &thread->donations_received_list;
-  int highest_priority = thread->true_priority;
-
-  if(!list_empty(donations_received_list)){
-    struct list_elem *e;
-    for (e = list_begin (donations_received_list); e != list_end (donations_received_list); e = list_next (e)) {
-      struct donation_received_elem *donation_elem = list_entry(e, struct donation_received_elem, elem);
-      if(donation_elem->priority > highest_priority && donation_elem->lock != lock){
-        highest_priority = donation_elem->priority;
-      }
-    }
-  }
-  return highest_priority;
-}
 
 
 
@@ -322,7 +262,10 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
-//printf("antes de thread_unblock\n");
+
+  // Ahora que ya se creó el thread, agregarlo a la lista de children del padre
+  list_push_back(&t->parent->children_list, &t->elem);
+
   /* Add to run queue. */
   thread_unblock (t);
 //printf("después de thread_unblock\n");
@@ -422,6 +365,9 @@ thread_exit (void)
   process_exit ();
 #endif
 
+  //sube el semaphore del padre, avisando que ya terminó este trhead.
+  sema_up(&thread_current()->parent->wait_child_sema);
+
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us
      when it calls thread_schedule_tail(). */
@@ -444,7 +390,7 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread)
-    list_insert_ordered (&ready_list, &cur->elem,thread_priority_compare, NULL);
+    list_push_back (&ready_list, &cur->elem);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -633,6 +579,13 @@ init_thread (struct thread *t, const char *name, int priority)
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
+
+  //nuevo userprog, inicializar lista de child
+  list_init(&t->children_list);
+  //nuevo userprog, agregar el padre
+  t->parent = running_thread();
+  //Inicializar semáforo
+  sema_init(&t->wait_child_sema, 0);
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
