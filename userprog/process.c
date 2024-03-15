@@ -24,7 +24,7 @@
 
 static thread_func start_process NO_RETURN;
 static bool load (void *process_data_arg, void (**eip) (void), void **stackpointer);
-static bool setup_stack (int argc, char** argv, void **stackpointer);
+static bool setup_stack (int argc, char* full_cmdline, void **stackpointer);
 
 //Nuevas funciones para userprog:
 static bool install_page (void *upage, void *kpage, bool writable);
@@ -37,7 +37,7 @@ int count_args(char *line);
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
-setup_stack (int argc, char** argv, void **stackpointer)
+setup_stack (int argc, char* full_cmdline, void **stackpointer)
 {
   uint8_t *kpage;
   bool success = false;
@@ -47,11 +47,68 @@ setup_stack (int argc, char** argv, void **stackpointer)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success){
-        printf("HOLAAAA, count %d\n", argc);
+        *stackpointer = PHYS_BASE;
+
+        unsigned long int argument_adresses[argc];
+        char *token, *save_ptr;
+        int saved_arguments = 0;
+
+        token = strtok_r(full_cmdline, " ", &save_ptr);
+        //printf("SS token: %s\n", token);
+
+
+        // Paso 2: Ciclo que agrega todos los argumentos al stack
+        /*for (token ; token != NULL && saved_arguments < MAX_ARGS; token = strtok_r(NULL, " ", &save_ptr)){
+          *stackpointer -= (strlen(token)+1); //Mueve el stack pointer el tamaño del string
+          memcpy(*stackpointer, token, strlen(token)+1); //Agrega el string al stack
+          argument_adresses[saved_arguments] = (unsigned long int)*stackpointer; //guarda la dirección del arg.
+          saved_arguments++;
+        }*/
+
+
+  /*for (token = strtok_r(line, " ", &save_ptr) ; token != NULL ; token = strtok_r(NULL, " ", &save_ptr)){
+    printf("counted %d args\n", argc);
+    argc++;
+  }*/
+      /*
+        //Paso 3, word align:
+        unsigned long int word_align = (unsigned long int)*stackpointer % 4;
+        *stackpointer -= word_align; //Va a mover el stackpointer 0, 1, 2 o 3;
+        memset(*stackpointer, 0x0, word_align);
+
+        //Paso 4, argumento de 4 bytes de 0s
+        *stackpointer -= 4;
+        memset(*stackpointer, 0x0, 4);
+
+        //Paso 5: guardar las direcciones al stack. Recordar que las direcciones se fueron guardando en argument_adressesi
+        for (int i = 0; i < saved_arguments; i++){
+          *stackpointer -= sizeof(char*);
+          memcpy(*stackpointer, &argument_adresses[i], sizeof(char*));
+        }
+
+        //Paso 6: guardar address de argv[0] ¿¿¿QUÉ ES ESTO??? Address del primer argumento?
+        unsigned long int argument_start_address = (unsigned long int)*stackpointer;
+        *stackpointer -= sizeof(char**);
+        memcpy(*stackpointer, &argument_start_address, sizeof(char**));
+
+        //Paso 7 guardar número de argumentls
+        *stackpointer -= 4;
+        memcpy(*stackpointer, &argc, 4); //argc es un int que viene como argumento de setup_stack;
+
+        //Paso 8: guardar null pointer como return address
+        *stackpointer -= sizeof(void*);
+        memcpy(*stackpointer, 0, sizeof(void*));
+
+
+        */
+
+
+
+
+        /*printf("HOLAAAA, count %d\n", argc);
         for(int i = 0; i<argc;i++){
           printf("arg %d: %s\n", i, "*(argv+i)");
-        }
-        *stackpointer = PHYS_BASE - 12;
+        }*/
       }else{
         palloc_free_page (kpage);
       }
@@ -96,6 +153,7 @@ struct process_data {
   char* file_name;
   int argc;
   char **argv;
+  char* full_cmdline;
 } process_data;
 
 /* Function that parses command line input */
@@ -106,13 +164,15 @@ void parse_args(char *line, char *argv[], int argc) {
   int count = 0;
 
   // Getting arguments, increasing args size and checking current size
-  token = strtok_r(line, " ", &save_ptr);
-  printf("primer token: %s\n",token);
+  //argv = malloc(argc*sizeof(char*));
 
   for (token; token != NULL && count < MAX_ARGS; token = strtok_r(NULL, " ", &save_ptr))
   {
-    printf("token %s\n",token);
-    size_t arg_len = strlen(token) + 1; // Consider null terminator
+    if(count != 0){
+      printf("token %s\n",token);
+      size_t arg_len = strlen(token) + 1; // Consider null terminator
+
+    }
     //argv[count] = palloc_get_page(0);
     /*if (argv[count] == NULL) {
       return TID_ERROR;
@@ -197,10 +257,10 @@ process_execute (const char *file_name)
 
 
 
-  fn_copy3 = palloc_get_page (0);
-  if (fn_copy3 == NULL)
+  args_data->full_cmdline = palloc_get_page (0);
+  if (args_data->full_cmdline == NULL)
   return TID_ERROR;
-  strlcpy (fn_copy3, file_name, PGSIZE);
+  strlcpy (args_data->full_cmdline, file_name, PGSIZE);
 
 
 
@@ -211,7 +271,7 @@ process_execute (const char *file_name)
     palloc_free_page(fn_copy);
     return TID_ERROR;
   }
-  parse_args(fn_copy3, argv, argc);
+  //parse_args(fn_copy3, argv, argc);
 
 
 
@@ -255,7 +315,7 @@ start_process (void *process_data_arg)
     thread_exit ();
 
   /* Setup user stack*/
-  setup_stack(process_data->argc, process_data->argv, &if_.esp);
+  setup_stack(process_data->argc, process_data->full_cmdline, &if_.esp);
   //setup_stack2(process_data->argc, process_data->argv, &if_.esp);
 
   /* Start the user process by simulating a return from an

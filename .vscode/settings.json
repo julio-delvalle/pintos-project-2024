@@ -5,6 +5,7 @@
         "debug.h": "c",
         "cstdlib": "c",
         "flags.h": "c",
-        "typeinfo": "c"
+        "typeinfo": "c",
+        "algorithm": "c"
     }
 }
