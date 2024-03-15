@@ -4,6 +4,7 @@
         "exception": "c",
         "debug.h": "c",
         "cstdlib": "c",
-        "flags.h": "c"
+        "flags.h": "c",
+        "typeinfo": "c"
     }
 }

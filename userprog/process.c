@@ -23,8 +23,8 @@
 #define MAX_ARGS 128
 
 static thread_func start_process NO_RETURN;
-static bool load (const char *cmdline, void (**eip) (void), void **esp);
-static bool setup_stack (void **esp);
+static bool load (void *process_data_arg, void (**eip) (void), void **stackpointer);
+static bool setup_stack (int argc, char** argv, void **stackpointer);
 
 //Nuevas funciones para userprog:
 static bool install_page (void *upage, void *kpage, bool writable);
@@ -37,7 +37,7 @@ int count_args(char *line);
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
-setup_stack (void **esp)
+setup_stack (int argc, char** argv, void **stackpointer)
 {
   uint8_t *kpage;
   bool success = false;
@@ -46,10 +46,15 @@ setup_stack (void **esp)
   if (kpage != NULL)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-      if (success)
-        *esp = PHYS_BASE - 12;
-      else
+      if (success){
+        printf("HOLAAAA, count %d\n", argc);
+        for(int i = 0; i<argc;i++){
+          printf("arg %d: %s\n", i, "*(argv+i)");
+        }
+        *stackpointer = PHYS_BASE - 12;
+      }else{
         palloc_free_page (kpage);
+      }
     }
   return success;
 }
@@ -95,6 +100,7 @@ struct process_data {
 
 /* Function that parses command line input */
 void parse_args(char *line, char *argv[], int argc) {
+  printf("dentro parse args, con %d args\n", argc);
 
   char *token, *save_ptr;
   int count = 0;
@@ -104,7 +110,7 @@ void parse_args(char *line, char *argv[], int argc) {
   for (token = strtok_r(line, " ", &save_ptr); token != NULL && count < MAX_ARGS; token = strtok_r(NULL, " ", &save_ptr))
   {
     size_t arg_len = strlen(token) + 1; // Consider null terminator
-    argv[count] = palloc_get_page(0);
+    //argv[count] = palloc_get_page(0);
     if (argv[count] == NULL) {
       return TID_ERROR;
     }
@@ -119,9 +125,11 @@ int count_args(char *line)
   int argc = 0;
   char *token, *save_ptr;
 
-  for (token = strtok_r(line, " ", &save_ptr) ; token != NULL ; token = strtok_r(NULL, " ", &save_ptr))
-    // Counting args
+  for (token = strtok_r(line, " ", &save_ptr) ; token != NULL ; token = strtok_r(NULL, " ", &save_ptr)){
+    printf("counted %d args\n", argc);
     argc++;
+  }
+    // Counting args
 
   return argc;
 
@@ -137,16 +145,6 @@ size_t calc_argv_size(char **argv, int argc)
   }
   size += (4 - size % 4) % 4; // Alignment
   return size;
-}
-
-/* Function for setting up user stack */
-static void setup_stack2(int argc, char** argv, void **stackpointer)
-{
-  int i = 0;
-  for(i; i < argc ; i++)
-  {
-
-  }
 }
 
 
@@ -167,12 +165,20 @@ process_execute (const char *file_name)
   tid_t tid;
   struct process_data *process_data_struct;
 
+  /* Allocationg memory for process_data struct */
+  struct process_data *args_data = palloc_get_page(sizeof(struct process_data));
+  /*if (args_data == NULL) {
+      palloc_free_page(argv);
+      return TID_ERROR;
+  }*/
+
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
+
 
   // Get First token
   fn_copy2 = palloc_get_page (0);
@@ -182,31 +188,31 @@ process_execute (const char *file_name)
     return TID_ERROR;  // No args
   }
   strlcpy (fn_copy2, file_name, PGSIZE);
-  char *file_name_token = strtok_r(fn_copy2, " ", &token_ptr);
+  args_data->file_name = strtok_r(fn_copy2, " ", &token_ptr);
+  printf("Se obtuvo file_name_token con valor %s\n",args_data->file_name);
 
 
   /* Counting arguments */
   int argc = count_args(fn_copy);
 
   /* Parse file_name and arguments */
-  char **argv = palloc_get_page(argc * sizeof(char *)); // Get memmory for arguments array
+  char **argv = palloc_get_page(argc*sizeof(char *)); // Get memmory for arguments array
   if (argv == NULL) {
     palloc_free_page(fn_copy);
     return TID_ERROR;
   }
   parse_args(fn_copy, argv, argc);
 
-  /* Allocationg memory for process_data struct */
-  struct process_data *args_data = palloc_get_page(sizeof(struct process_data));
-  if (args_data == NULL) {
-      palloc_free_page(argv);
-      return TID_ERROR;
-  }
+
 
   /* Assing data */
   args_data->argc = argc;
-  args_data->file_name = file_name_token;
+  //args_data->file_name = malloc(sizeof(file_name_token));
+  //strlcpy(args_data->file_name, file_name_token, sizeof(file_name_token));
+  //args_data->file_name = file_name_token;
   args_data->argv = argv;
+
+  printf("se creó args_data con argc %d , file_name %s , argv %d\n", args_data->argc, args_data->file_name, args_data->argv);
 
 
   /* Create a new thread to execute FILE_NAME. */
@@ -231,7 +237,7 @@ start_process (void *process_data_arg)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
+  success = load (process_data, &if_.eip, &if_.esp);
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
@@ -239,7 +245,7 @@ start_process (void *process_data_arg)
     thread_exit ();
 
   /* Setup user stack*/
-  setup_stack(&if_.esp);
+  setup_stack(process_data->argc, process_data->argv, &if_.esp);
   //setup_stack2(process_data->argc, process_data->argv, &if_.esp);
 
   /* Start the user process by simulating a return from an
@@ -383,8 +389,9 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
    and its initial stack pointer into *ESP.
    Returns true if successful, false otherwise. */
 bool
-load (const char *file_name, void (**eip) (void), void **esp)
+load (void *process_data_arg, void (**eip) (void), void **stackpointer)
 {
+  struct process_data *process_data = (struct process_data *) process_data_arg;
   struct thread *t = thread_current ();
   struct Elf32_Ehdr ehdr;
   struct file *file = NULL;
@@ -399,10 +406,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
-  file = filesys_open (file_name);
+  file = filesys_open (process_data->file_name);
   if (file == NULL)
     {
-      printf ("load: %s: open failed\n", file_name);
+      printf ("load: %s: open failed\n", process_data->file_name);
       goto done;
     }
 
@@ -415,7 +422,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
       || ehdr.e_phentsize != sizeof (struct Elf32_Phdr)
       || ehdr.e_phnum > 1024)
     {
-      printf ("load: %s: error loading executable\n", file_name);
+      printf ("load: %s: error loading executable\n", process_data->file_name);
       goto done;
     }
 
@@ -479,7 +486,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
     }
 
   /* Set up stack. */
-  if (!setup_stack (esp))
+  if (!setup_stack (0, NULL, stackpointer))
     goto done;
 
   /* Start address. */
