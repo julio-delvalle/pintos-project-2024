@@ -100,6 +100,7 @@ struct thread
     struct semaphore wait_child_sema;      //Semaphore para hacer que el thread espere si hay childs que no han terminado
     struct thread* parent;  //puntero al thread padre
     struct list children_list;  //lista de threads
+    enum thread_status exit_status;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */

@@ -8,8 +8,13 @@
 #include "filesys/file.h" // para poder usar file_write
 
 static void syscall_handler (struct intr_frame *);
+int halt();
 int write(int fd, const void* buffer, unsigned size);
 static void exit (int status);
+
+//helper functions:
+static bool get_int_arg (const uint8_t *uaddr, int pos, int *pi);
+
 
 void
 syscall_init (void)
@@ -23,12 +28,14 @@ syscall_handler (struct intr_frame *f)
   int sys_code = *(int*)f->esp;
   switch(sys_code){
     case SYS_HALT:
-        printf("SYS_HALT.\n");
+        halt();
         break;
     case SYS_EXIT:
-        printf("SYS_EXIT.\n");
-        exit(999);
+        {
+        int status = *((int*)f->esp + 1);
+        exit(status);
         break;
+        }
     case SYS_EXEC:
         printf("SYS_EXEC.\n");
         break;
@@ -51,14 +58,15 @@ syscall_handler (struct intr_frame *f)
         printf("SYS_READ.\n");
         break;
     case SYS_WRITE:
-        printf("");
-        int fd = *((int*)f->esp + 1);
+        {
+          int fd = *((int*)f->esp + 1);
         void* buffer = (void*)(*((int*)f->esp + 2));
         unsigned size = *((unsigned*)f->esp + 3);
         //run the syscall, a function of your own making
         //since this syscall returns a value, the return value should be stored in f->eax
         f->eax = write(fd, buffer, size);
         break;
+        }
     case SYS_SEEK:
         printf("SYS_SEEK.\n");
         break;
@@ -88,8 +96,15 @@ int write(int fd, const void* buffer, unsigned size){
 
 }
 
+int halt(){
+  shutdown_power_off();
+}
+
 void exit(int status){
-  printf("%s: exit(%d)\n", thread_current()->name, status);
+  thread_current()->exit_status = status;
+  // EL PRINT DE STATUS SE MOVIÓ A THREAD_EXIT
+  //printf("%s: exit(%d)\n", thread_current()->name, status);
+  thread_exit();
 
   // The process exits.
   // wake up the parent process (if it was sleeping) using semaphore,
@@ -103,15 +118,13 @@ void exit(int status){
     // page allocation has failed in process_execute()
   }*/
 
-  thread_exit();
 }
 
 
 
 /// HELPER FUNCTIONS: funciones de ayuda para parsear argumentos:
 /* Gets an integer argument at the specified positon from user space. */
-static bool get_int_arg (const uint8_t *uaddr, int pos, int *pi)
-{
+static bool get_int_arg (const uint8_t *uaddr, int pos, int *pi){
   return read_int (uaddr + sizeof (int) * pos, pi);
 }
 

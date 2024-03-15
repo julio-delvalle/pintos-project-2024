@@ -50,14 +50,14 @@ setup_stack (int argc, char* full_cmdline, void **esp)
       if (success){
         *esp = PHYS_BASE;
 
-        printf("esp: %x\n", *esp);
+        //printf("esp: %x\n", *esp);
 
         unsigned long int argument_adresses[argc];
         char *token, *save_ptr;
         int saved_arguments = 0;
 
         //DEBUG:: QUITAR
-        uintptr_t start = (uintptr_t)*esp;
+        //uintptr_t start = (uintptr_t)*esp;
 
 
 
@@ -71,7 +71,7 @@ setup_stack (int argc, char* full_cmdline, void **esp)
         for (int i=0;i<saved_arguments;i++){
           token = arguments[(saved_arguments-1) - i];
           *esp -= (strlen(token)+1); //Mueve el stack pointer el tamaño del string
-          printf("esp: %x\n", *esp);
+          //printf("esp: %x\n", *esp);
           memcpy(*esp, token, strlen(token)+1); //Agrega el string al stack
           argument_adresses[i] = (unsigned long int)*esp; //guarda la dirección del arg.
         }
@@ -109,14 +109,10 @@ setup_stack (int argc, char* full_cmdline, void **esp)
         memset(*esp, 0, sizeof(char**));
 
         //DEBUG:: QUITAR
-        char buf[start - (uint32_t)*esp + 1];
+        /*char buf[start - (uint32_t)*esp + 1];
         memcpy(buf, *esp, start - (uint32_t)*esp);
-        hex_dump((int)*esp, buf, start - (uintptr_t)*esp, true);
+        hex_dump((int)*esp, buf, start - (uintptr_t)*esp, true);*/
 
-
-
-
-        printf("SALIENDO SETUP_STACK\n");
       }else{
         palloc_free_page (kpage);
       }
@@ -166,7 +162,7 @@ struct process_data {
 
 /* Function that parses command line input */
 void parse_args(char *line, char *argv[], int argc) {
-  printf("dentro parse args, con %d args\n", argc);
+  //printf("dentro parse args, con %d args\n", argc);
 
   char *token, *save_ptr;
   int count = 0;
@@ -177,7 +173,7 @@ void parse_args(char *line, char *argv[], int argc) {
   for (token; token != NULL && count < MAX_ARGS; token = strtok_r(NULL, " ", &save_ptr))
   {
     if(count != 0){
-      printf("token %s\n",token);
+      //printf("token %s\n",token);
       size_t arg_len = strlen(token) + 1; // Consider null terminator
 
     }
@@ -197,7 +193,7 @@ int count_args(char *line)
   char *token, *save_ptr;
 
   for (token = strtok_r(line, " ", &save_ptr) ; token != NULL ; token = strtok_r(NULL, " ", &save_ptr)){
-    printf("counted %d args\n", argc);
+    //printf("counted %d args\n", argc);
     argc++;
   }
     // Counting args
@@ -261,7 +257,7 @@ process_execute (const char *file_name)
   }
   strlcpy (fn_copy2, file_name, PGSIZE);
   args_data->file_name = strtok_r(fn_copy2, " ", &token_ptr);
-  printf("Se obtuvo file_name_token con valor %s\n",args_data->file_name);
+  //printf("Se obtuvo file_name_token con valor %s\n",args_data->file_name);
 
 
 
@@ -290,7 +286,7 @@ process_execute (const char *file_name)
   //args_data->file_name = file_name_token;
   args_data->argv = argv;
 
-  printf("se creó args_data con argc %d , file_name %s , argv %d\n", args_data->argc, args_data->file_name, args_data->argv);
+  //printf("se creó args_data con argc %d , file_name %s , argv %d\n", args_data->argc, args_data->file_name, args_data->argv);
 
 
   /* Create a new thread to execute FILE_NAME. */
@@ -329,10 +325,8 @@ start_process (void *process_data_arg)
      arguments on the stack in the form of a `struct intr_frame',
      we just point the stack pointer (%esp) to our stack frame
      and jump to it. */
-  printf("NTES DE asm volatile\n");
   asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
   NOT_REACHED ();
-  printf("DESPUÉS DE asm volatile\n");
 }
 
 /* Waits for thread TID to die and returns its exit status.  If
@@ -374,7 +368,7 @@ process_exit (void)
       pagedir_destroy (pd);
     }
   // Process Termination msg
-  printf ("%s: exit(%d)\n", cur->name, cur->status);
+  printf ("%s: exit(%d)\n", cur->name, cur->exit_status);
 }
 
 /* Sets up the CPU for running user code in the current
