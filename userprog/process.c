@@ -106,15 +106,18 @@ void parse_args(char *line, char *argv[], int argc) {
   int count = 0;
 
   // Getting arguments, increasing args size and checking current size
+  token = strtok_r(line, " ", &save_ptr);
+  printf("primer token: %s\n",token);
 
-  for (token = strtok_r(line, " ", &save_ptr); token != NULL && count < MAX_ARGS; token = strtok_r(NULL, " ", &save_ptr))
+  for (token; token != NULL && count < MAX_ARGS; token = strtok_r(NULL, " ", &save_ptr))
   {
+    printf("token %s\n",token);
     size_t arg_len = strlen(token) + 1; // Consider null terminator
     //argv[count] = palloc_get_page(0);
-    if (argv[count] == NULL) {
+    /*if (argv[count] == NULL) {
       return TID_ERROR;
     }
-    strlcpy(argv[count], token, arg_len);
+    strlcpy(argv[count], token, arg_len);*/
     count++;
   }
 }
@@ -161,7 +164,7 @@ process_execute (const char *file_name)
   * MAX_ARGS = MAX_PAGE_SIZE/MEAN_ARG_SIZE = 128
   */
 
-  char *fn_copy, *token_ptr, *fn_copy2;
+  char *fn_copy, *token_ptr, *fn_copy2, *fn_copy3;
   tid_t tid;
   struct process_data *process_data_struct;
 
@@ -178,7 +181,8 @@ process_execute (const char *file_name)
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
-
+    /* Counting arguments */
+  int argc = count_args(fn_copy);
 
   // Get First token
   fn_copy2 = palloc_get_page (0);
@@ -192,8 +196,14 @@ process_execute (const char *file_name)
   printf("Se obtuvo file_name_token con valor %s\n",args_data->file_name);
 
 
-  /* Counting arguments */
-  int argc = count_args(fn_copy);
+
+  fn_copy3 = palloc_get_page (0);
+  if (fn_copy3 == NULL)
+  return TID_ERROR;
+  strlcpy (fn_copy3, file_name, PGSIZE);
+
+
+
 
   /* Parse file_name and arguments */
   char **argv = palloc_get_page(argc*sizeof(char *)); // Get memmory for arguments array
@@ -201,7 +211,7 @@ process_execute (const char *file_name)
     palloc_free_page(fn_copy);
     return TID_ERROR;
   }
-  parse_args(fn_copy, argv, argc);
+  parse_args(fn_copy3, argv, argc);
 
 
 
