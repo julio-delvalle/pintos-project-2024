@@ -6,6 +6,7 @@
         "cstdlib": "c",
         "flags.h": "c",
         "typeinfo": "c",
-        "algorithm": "c"
+        "algorithm": "c",
+        "process.h": "c"
     }
 }
