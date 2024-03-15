@@ -23,8 +23,8 @@
 #define MAX_ARGS 128
 
 static thread_func start_process NO_RETURN;
-static bool load (void *process_data_arg, void (**eip) (void), void **stackpointer);
-static bool setup_stack (int argc, char* full_cmdline, void **stackpointer);
+static bool load (void *process_data_arg, void (**eip) (void), void **esp);
+static bool setup_stack (int argc, char* full_cmdline, void **esp);
 
 //Nuevas funciones para userprog:
 static bool install_page (void *upage, void *kpage, bool writable);
@@ -37,7 +37,7 @@ int count_args(char *line);
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
-setup_stack (int argc, char* full_cmdline, void **stackpointer)
+setup_stack (int argc, char* full_cmdline, void **esp)
 {
   uint8_t *kpage;
   bool success = false;
@@ -47,68 +47,72 @@ setup_stack (int argc, char* full_cmdline, void **stackpointer)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success){
-        *stackpointer = PHYS_BASE;
+        *esp = PHYS_BASE;
+
+        printf("esp: %x\n", *esp);
 
         unsigned long int argument_adresses[argc];
         char *token, *save_ptr;
         int saved_arguments = 0;
+
+        //DEBUG:: QUITAR
+        uintptr_t start = (uintptr_t)*esp;
+
 
         token = strtok_r(full_cmdline, " ", &save_ptr);
         //printf("SS token: %s\n", token);
 
 
         // Paso 2: Ciclo que agrega todos los argumentos al stack
-        /*for (token ; token != NULL && saved_arguments < MAX_ARGS; token = strtok_r(NULL, " ", &save_ptr)){
-          *stackpointer -= (strlen(token)+1); //Mueve el stack pointer el tamaño del string
-          memcpy(*stackpointer, token, strlen(token)+1); //Agrega el string al stack
-          argument_adresses[saved_arguments] = (unsigned long int)*stackpointer; //guarda la dirección del arg.
+        for (token ; token != NULL && saved_arguments < MAX_ARGS; token = strtok_r(NULL, " ", &save_ptr)){
+          *esp -= (strlen(token)+1); //Mueve el stack pointer el tamaño del string
+          printf("esp: %x\n", *esp);
+          memcpy(*esp, token, strlen(token)+1); //Agrega el string al stack
+          argument_adresses[saved_arguments] = (unsigned long int)*esp; //guarda la dirección del arg.
           saved_arguments++;
-        }*/
+        }
 
 
-  /*for (token = strtok_r(line, " ", &save_ptr) ; token != NULL ; token = strtok_r(NULL, " ", &save_ptr)){
-    printf("counted %d args\n", argc);
-    argc++;
-  }*/
-      /*
         //Paso 3, word align:
-        unsigned long int word_align = (unsigned long int)*stackpointer % 4;
-        *stackpointer -= word_align; //Va a mover el stackpointer 0, 1, 2 o 3;
-        memset(*stackpointer, 0x0, word_align);
+        unsigned long int word_align = (unsigned long int)*esp % 4;
+        *esp -= word_align; //Va a mover el esp 0, 1, 2 o 3;
+        memset(*esp, 0x0, word_align);
+
 
         //Paso 4, argumento de 4 bytes de 0s
-        *stackpointer -= 4;
-        memset(*stackpointer, 0x0, 4);
+        *esp -= 4;
+        memset(*esp, 0x0, 4);
 
         //Paso 5: guardar las direcciones al stack. Recordar que las direcciones se fueron guardando en argument_adressesi
         for (int i = 0; i < saved_arguments; i++){
-          *stackpointer -= sizeof(char*);
-          memcpy(*stackpointer, &argument_adresses[i], sizeof(char*));
+          *esp -= sizeof(char*);
+          memcpy(*esp, &argument_adresses[i], sizeof(char*));
         }
 
+
         //Paso 6: guardar address de argv[0] ¿¿¿QUÉ ES ESTO??? Address del primer argumento?
-        unsigned long int argument_start_address = (unsigned long int)*stackpointer;
-        *stackpointer -= sizeof(char**);
-        memcpy(*stackpointer, &argument_start_address, sizeof(char**));
+        unsigned long int argument_start_address = (unsigned long int)*esp;
+        *esp -= sizeof(char**);
+        memcpy(*esp, &argument_start_address, sizeof(char**));
 
         //Paso 7 guardar número de argumentls
-        *stackpointer -= 4;
-        memcpy(*stackpointer, &argc, 4); //argc es un int que viene como argumento de setup_stack;
+        *esp -= 4;
+        memcpy(*esp, &argc, 4); //argc es un int que viene como argumento de setup_stack;
+
 
         //Paso 8: guardar null pointer como return address
-        *stackpointer -= sizeof(void*);
-        memcpy(*stackpointer, 0, sizeof(void*));
+        *esp -= sizeof(char**);
+        memset(*esp, 0, sizeof(char**));
+
+        //DEBUG:: QUITAR
+        char buf[start - (uint32_t)*esp + 1];
+        memcpy(buf, *esp, start - (uint32_t)*esp);
+        hex_dump((int)*esp, buf, start - (uintptr_t)*esp, true);
 
 
-        */
 
 
-
-
-        /*printf("HOLAAAA, count %d\n", argc);
-        for(int i = 0; i<argc;i++){
-          printf("arg %d: %s\n", i, "*(argv+i)");
-        }*/
+        printf("SALIENDO SETUP_STACK\n");
       }else{
         palloc_free_page (kpage);
       }
@@ -314,9 +318,6 @@ start_process (void *process_data_arg)
   if (!success)
     thread_exit ();
 
-  /* Setup user stack*/
-  setup_stack(process_data->argc, process_data->full_cmdline, &if_.esp);
-  //setup_stack2(process_data->argc, process_data->argv, &if_.esp);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -324,8 +325,10 @@ start_process (void *process_data_arg)
      arguments on the stack in the form of a `struct intr_frame',
      we just point the stack pointer (%esp) to our stack frame
      and jump to it. */
+  printf("NTES DE asm volatile\n");
   asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
   NOT_REACHED ();
+  printf("DESPUÉS DE asm volatile\n");
 }
 
 /* Waits for thread TID to die and returns its exit status.  If
@@ -459,7 +462,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
    and its initial stack pointer into *ESP.
    Returns true if successful, false otherwise. */
 bool
-load (void *process_data_arg, void (**eip) (void), void **stackpointer)
+load (void *process_data_arg, void (**eip) (void), void **esp)
 {
   struct process_data *process_data = (struct process_data *) process_data_arg;
   struct thread *t = thread_current ();
@@ -556,7 +559,7 @@ load (void *process_data_arg, void (**eip) (void), void **stackpointer)
     }
 
   /* Set up stack. */
-  if (!setup_stack (0, NULL, stackpointer))
+  if (!setup_stack (process_data->argc, process_data->full_cmdline, esp))
     goto done;
 
   /* Start address. */
