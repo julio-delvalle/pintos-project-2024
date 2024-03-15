@@ -10,6 +10,8 @@
 static void syscall_handler (struct intr_frame *);
 int halt();
 int write(int fd, const void* buffer, unsigned size);
+bool create(const char* file, unsigned initial_size);
+bool remove(const char* file);
 static void exit (int status);
 
 //helper functions:
@@ -37,25 +39,32 @@ syscall_handler (struct intr_frame *f)
         break;
         }
     case SYS_EXEC:
-        printf("SYS_EXEC.\n");
+        //printf("SYS_EXEC.\n");
         break;
     case SYS_WAIT:
-        printf("SYS_WAIT.\n");
+        //printf("SYS_WAIT.\n");
         break;
     case SYS_CREATE:
-        printf("SYS_CREATE.\n");
-        break;
+        {
+          char* file = (char*)(*((int*)f->esp + 1));
+          unsigned initial_size = *((unsigned*)f->esp + 2);
+          f->eax = create(file, initial_size);
+          break;
+        }
     case SYS_REMOVE:
-        printf("SYS_REMOVE.\n");
-        break;
+        {
+          char* file = (char*)(*((int*)f->esp + 1));
+          f->eax = remove(file);
+          break;
+        }
     case SYS_OPEN:
-        printf("SYS_OPEN.\n");
+        //printf("SYS_OPEN.\n");
         break;
     case SYS_FILESIZE:
-        printf("SYS_FILESIZE.\n");
+        //printf("SYS_FILESIZE.\n");
         break;
     case SYS_READ:
-        printf("SYS_READ.\n");
+        //printf("SYS_READ.\n");
         break;
     case SYS_WRITE:
         {
@@ -68,19 +77,35 @@ syscall_handler (struct intr_frame *f)
         break;
         }
     case SYS_SEEK:
-        printf("SYS_SEEK.\n");
+        //printf("SYS_SEEK.\n");
         break;
     case SYS_TELL:
-        printf("SYS_TELL.\n");
+        //printf("SYS_TELL.\n");
         break;
     case SYS_CLOSE:
-        printf("SYS_CLOSE.\n");
+        //printf("SYS_CLOSE.\n");
         break;
     default:
-        printf ("system call %d !\n", sys_code);
+        //printf ("system call %d !\n", sys_code);
         thread_exit ();
     }
 
+}
+
+bool create(const char* file, unsigned initial_size){
+  if(!is_user_vaddr(file) || !is_user_vaddr(file+initial_size)){ // SI las direcciones no son validas, sale
+    thread_exit();
+  }
+  bool result = filesys_create(file, initial_size);
+  return result;
+}
+
+bool remove(const char* file){
+  if(!is_user_vaddr(file)){ // SI las direcciones no son validas, sale
+    thread_exit();
+  }
+  bool result = filesys_remove(file);
+  return result;
 }
 
 int write(int fd, const void* buffer, unsigned size){
