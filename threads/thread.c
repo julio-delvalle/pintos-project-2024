@@ -261,6 +261,10 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
+
+  // Ahora que ya se creó el thread, agregarlo a la lista de children del padre
+  list_push_back(&t->parent->children_list, &t->elem);
+
   /* Add to run queue. */
   thread_unblock (t);
 
@@ -348,6 +352,9 @@ thread_exit (void)
 #ifdef USERPROG
   process_exit ();
 #endif
+
+  //sube el semaphore del padre, avisando que ya terminó este trhead.
+  sema_up(&thread_current()->parent->wait_child_sema);
 
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us
@@ -530,6 +537,13 @@ init_thread (struct thread *t, const char *name, int priority)
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
+
+  //nuevo userprog, inicializar lista de child
+  list_init(&t->children_list);
+  //nuevo userprog, agregar el padre
+  t->parent = running_thread();
+  //Inicializar semáforo
+  sema_init(&t->wait_child_sema, 0);
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and

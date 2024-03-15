@@ -3,6 +3,7 @@
         "*.inc": "c",
         "exception": "c",
         "debug.h": "c",
-        "cstdlib": "c"
+        "cstdlib": "c",
+        "flags.h": "c"
     }
 }

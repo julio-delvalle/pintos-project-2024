@@ -18,6 +18,8 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
+#include "threads/synch.h" // Para poder usar sema_up y sema_down
+
 #define MAX_ARGS 128
 
 static thread_func start_process NO_RETURN;
@@ -262,9 +264,7 @@ start_process (void *process_data_arg)
 int
 process_wait (tid_t child_tid UNUSED)
 {
-  while(true){
-    thread_yield();
-  }
+  sema_down(&thread_current()->wait_child_sema);
 }
 
 /* Free the current process's resources. */
