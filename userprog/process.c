@@ -21,6 +21,7 @@
 #include "threads/synch.h" // Para poder usar sema_up y sema_down
 
 #define MAX_ARGS 128
+#define MAX_ARG_LENGTH 128 //el argumento solo puede tener 128 caracteres
 
 static thread_func start_process NO_RETURN;
 static bool load (void *process_data_arg, void (**eip) (void), void **esp);
@@ -59,17 +60,20 @@ setup_stack (int argc, char* full_cmdline, void **esp)
         uintptr_t start = (uintptr_t)*esp;
 
 
-        token = strtok_r(full_cmdline, " ", &save_ptr);
-        //printf("SS token: %s\n", token);
 
-
-        // Paso 2: Ciclo que agrega todos los argumentos al stack
-        for (token ; token != NULL && saved_arguments < MAX_ARGS; token = strtok_r(NULL, " ", &save_ptr)){
+        //Paso 2: obtiene los argumentos, y luego los agrega en orden inverso
+        char *arguments[argc]; //array que va a tener los argumentos
+        for (token = strtok_r(full_cmdline, " ", &save_ptr); token != NULL && saved_arguments < MAX_ARGS; token = strtok_r(NULL, " ", &save_ptr)){
+          arguments[saved_arguments] = malloc((strlen(token)+1)*sizeof(char));
+          snprintf(arguments[saved_arguments],strlen(token)+1, "%s", token);
+          saved_arguments++;
+        }
+        for (int i=0;i<saved_arguments;i++){
+          token = arguments[(saved_arguments-1) - i];
           *esp -= (strlen(token)+1); //Mueve el stack pointer el tamaño del string
           printf("esp: %x\n", *esp);
           memcpy(*esp, token, strlen(token)+1); //Agrega el string al stack
-          argument_adresses[saved_arguments] = (unsigned long int)*esp; //guarda la dirección del arg.
-          saved_arguments++;
+          argument_adresses[i] = (unsigned long int)*esp; //guarda la dirección del arg.
         }
 
 
