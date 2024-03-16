@@ -15,6 +15,7 @@ bool remove(const char* file);
 static void exit (int status);
 int exec(char* cmdline);
 int wait(int child_tid);
+int open(const char* file_name);
 
 //helper functions:
 static bool get_int_arg (const uint8_t *uaddr, int pos, int *pi);
@@ -66,8 +67,11 @@ syscall_handler (struct intr_frame *f)
           break;
         }
     case SYS_OPEN:
-        //printf("SYS_OPEN.\n");
-        break;
+        {
+          char* file = (char*)(*((int*)f->esp + 1));
+          f->eax = open(file);
+          break;
+        }
     case SYS_FILESIZE:
         //printf("SYS_FILESIZE.\n");
         break;
@@ -98,6 +102,18 @@ syscall_handler (struct intr_frame *f)
         thread_exit ();
     }
 
+}
+
+int open(const char* file_name) {
+  if (file_name == NULL || strlen(file_name) == 0 || !is_user_vaddr(file_name)) {
+    return -1;
+  }
+
+  struct file* opened_file = filesys_open(file_name);
+
+  if(opened_file == NULL)
+    return -1;
+  return 2; // Only one file opened
 }
 
 int exec(char* cmdline){
