@@ -342,6 +342,7 @@ int
 process_wait (tid_t child_tid UNUSED)
 {
   sema_down(&thread_current()->wait_child_sema);
+  return thread_current()->child_status;
 }
 
 /* Free the current process's resources. */

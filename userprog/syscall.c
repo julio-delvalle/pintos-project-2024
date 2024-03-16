@@ -13,6 +13,8 @@ int write(int fd, const void* buffer, unsigned size);
 bool create(const char* file, unsigned initial_size);
 bool remove(const char* file);
 static void exit (int status);
+int exec(char* cmdline);
+int wait(int child_tid);
 
 //helper functions:
 static bool get_int_arg (const uint8_t *uaddr, int pos, int *pi);
@@ -39,11 +41,17 @@ syscall_handler (struct intr_frame *f)
         break;
         }
     case SYS_EXEC:
-        //printf("SYS_EXEC.\n");
-        break;
+        {
+          char *cmd_line = (char*)(*((int*)f->esp + 1));
+          f->eax = exec(cmd_line);
+          break;
+        }
     case SYS_WAIT:
-        //printf("SYS_WAIT.\n");
-        break;
+        {
+          int child_tid = *((int*)f->esp + 1);
+          f->eax = wait(child_tid);
+          break;
+        }
     case SYS_CREATE:
         {
           char* file = (char*)(*((int*)f->esp + 1));
@@ -92,18 +100,29 @@ syscall_handler (struct intr_frame *f)
 
 }
 
+int exec(char* cmdline){
+  //write(1,cmdline, 100);
+  //agregar aquí validaciones
+  return process_execute(cmdline);
+}
+
+int wait(int child_tid){
+  //agregar aqui validaciones
+  return process_wait(child_tid);
+}
+
 bool create(const char* file, unsigned initial_size){
-  if(!is_user_vaddr(file) || !is_user_vaddr(file+initial_size)){ // SI las direcciones no son validas, sale
+  /*if(!is_user_vaddr(file) || !is_user_vaddr(file+initial_size)){ // SI las direcciones no son validas, sale
     thread_exit();
-  }
+  }*/
   bool result = filesys_create(file, initial_size);
   return result;
 }
 
 bool remove(const char* file){
-  if(!is_user_vaddr(file)){ // SI las direcciones no son validas, sale
+  /*if(!is_user_vaddr(file)){ // SI las direcciones no son validas, sale
     thread_exit();
-  }
+  }*/
   bool result = filesys_remove(file);
   return result;
 }
@@ -127,6 +146,7 @@ int halt(){
 
 void exit(int status){
   thread_current()->exit_status = status;
+  thread_current()->parent->child_status = status;
   // EL PRINT DE STATUS SE MOVIÓ A THREAD_EXIT
   //printf("%s: exit(%d)\n", thread_current()->name, status);
   thread_exit();
