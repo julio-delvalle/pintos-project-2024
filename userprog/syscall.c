@@ -12,6 +12,8 @@ int halt();
 int write(int fd, const void* buffer, unsigned size);
 bool create(const char* file, unsigned initial_size);
 bool remove(const char* file);
+int open(const char* file_name);
+void close(int fd);
 static void exit (int status);
 
 //helper functions:
@@ -110,6 +112,20 @@ bool remove(const char* file){
   }
   bool result = filesys_remove(file);
   return result;
+}
+
+int open(const char* file_name) {
+
+
+  if (file_name == NULL || strlen(file_name) == 0 || !is_user_vaddr(file_name)) {
+    return -1;
+  }
+
+  struct file* opened_file = filesys_open(file_name);
+
+  if(opened_file == NULL)
+    return -1;
+  return 2; // Only one file opened
 }
 
 void close(int fd) {
