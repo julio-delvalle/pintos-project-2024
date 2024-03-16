@@ -16,6 +16,7 @@ static void exit (int status);
 int exec(char* cmdline);
 int wait(int child_tid);
 int open(const char* file_name);
+void close(int fd);
 
 //helper functions:
 static bool get_int_arg (const uint8_t *uaddr, int pos, int *pi);
@@ -95,13 +96,23 @@ syscall_handler (struct intr_frame *f)
         //printf("SYS_TELL.\n");
         break;
     case SYS_CLOSE:
-        //printf("SYS_CLOSE.\n");
-        break;
+        {
+          //int fd = *((int*)f->esp + 1);
+          //close(fd);
+          //f->eax = fd;
+          break;
+        }
     default:
         //printf ("system call %d !\n", sys_code);
         thread_exit ();
     }
 
+}
+
+void close(int fd) {
+  if (fd != NULL) {
+    file_close(fd);
+  }
 }
 
 int open(const char* file_name) {

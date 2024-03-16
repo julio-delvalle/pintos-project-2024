@@ -281,10 +281,10 @@ process_execute (const char *file_name)
 
   /* Assing data */
   args_data->argc = argc;
+  args_data->argv = argv;
   //args_data->file_name = malloc(sizeof(file_name_token));
   //strlcpy(args_data->file_name, file_name_token, sizeof(file_name_token));
   //args_data->file_name = file_name_token;
-  args_data->argv = argv;
 
   //printf("se creó args_data con argc %d , file_name %s , argv %d\n", args_data->argc, args_data->file_name, args_data->argv);
 
