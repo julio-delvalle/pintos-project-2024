@@ -215,69 +215,6 @@ size_t calc_argv_size(char **argv, int argc)
 }
 
 
-/* Defining struct of data used for process stack setup */
-struct process_data {
-  char* file_name;
-  int argc;
-  char **argv;
-} process_data;
-
-/* Function that parses command line input */
-void parse_args(const char *line, char *argv[], int argc) {
-
-  char *token, *save_ptr;
-  int argc = 0;
-
-  // Getting arguments, increasing args size and checking current size
-
-  for (token = strtok_r(line, " ", &save_ptr); token != NULL && argc < MAX_ARGS; token = strtok_r(NULL, " ", &save_ptr))
-  {
-    size_t arg_len = strlen(token) + 1; // Consider null terminator
-    argv[argc] = palloc_get_page(0);
-    if (argv[argc] == NULL) {
-      return TID_ERROR;
-    }
-    strlcpy(argv[argc], token, arg_len);
-    argc++;
-  }
-}
-
-/* Function that counts args in command line */
-int count_args(const char *line)
-{
-  int argc = 0;
-  char *token, *save_ptr;
-
-  for (token = strtok_r(line, " ", &save_ptr) ; token != NULL ; token = strtok_r(NULL, " ", &save_ptr))
-    // Counting args
-    argc++;
-
-  return argc;
-
-}
-
-/* Calculate size of all elements of argv */
-size_t calc_argv_size(char **argv, int argc)
-{
-  size_t size = 0;
-  int i = 0;
-  for(i ; i < argc ; i++)
-    size += strlen(argv[i]) + 1;
-  size += (4 - size % 4) % 4; // Alignment
-  return size;
-}
-
-/* Function for setting up user stack */
-static void setup_stack(int argc, char** argv, void **stackpointer)
-{
-  int i = 0;
-  for(i; i < argc ; i++)
-  {
-
-  }
-}
-
-
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
@@ -350,39 +287,6 @@ process_execute (const char *file_name)
   args_data->argv = argv;
 
   //printf("se creó args_data con argc %d , file_name %s , argv %d\n", args_data->argc, args_data->file_name, args_data->argv);
-
-
-  // Get First token
-  char *file_name_token = strtok_r(fn_copy, " ", &token_ptr);
-  if (file_name_token == NULL)
-  {
-    palloc_free_page (fn_copy);
-    return TID_ERROR;  // No args
-  }
-
-
-  /* Counting arguments */
-  int argc = count_args(fn_copy);
-
-  /* Parse file_name and arguments */
-  char **argv = palloc_get_page(argc * sizeof(char *)); // Get memmory for arguments array
-  if (argv == NULL) {
-    palloc_free_page(fn_copy);
-    return TID_ERROR;
-  }
-  parse_args(fn_copy, argv, argc);
-
-  /* Allocationg memory for process_data struct */
-  struct process_data *args_data = palloc_get_page(sizeof(struct process_data));
-  if (args_data == NULL) {
-      palloc_free_page(argv);
-      return TID_ERROR;
-  }
-
-  /* Assing data */
-  args_data->argc = argc;
-  args_data->file_name = file_name_token;
-  args_data->argv = argv;
 
 
   /* Create a new thread to execute FILE_NAME. */
@@ -773,4 +677,3 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
     }
   return true;
 }
-

@@ -95,15 +95,8 @@ timer_sleep (int64_t ticks)
   /*while (timer_elapsed (start) < ticks)
     thread_yield ();*/
 
-<<<<<<< HEAD
-  if(ticks > 0){
-    //Si es negativo, no lo pone en espera. Esto por test alarm-negative
-    insertar_en_lista_espera(ticks);
-  }
-=======
   insertar_en_lista_espera(ticks);
 
->>>>>>> origin/fase2_julio
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -175,7 +168,7 @@ timer_print_stats (void)
 {
   printf ("Timer: %"PRId64" ticks\n", timer_ticks ());
 }
-
+
 /* Timer interrupt handler. */
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
