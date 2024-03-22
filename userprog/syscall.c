@@ -6,11 +6,12 @@
 
 #include "threads/vaddr.h"// Include para validación de direcciones
 #include "filesys/file.h" // para poder usar file_write
+#include "filesys/off_t.h" // para poder utilizar off_t
 
 static void syscall_handler (struct intr_frame *);
 int halt();
 int write(int fd, const void* buffer, unsigned size);
-bool create(const char* file, unsigned initial_size);
+bool create(const char* file, off_t initial_size);
 bool remove(const char* file);
 static void exit (int status);
 int exec(char* cmdline);
@@ -20,7 +21,14 @@ void close(int fd);
 
 //helper functions:
 static bool get_int_arg (const uint8_t *uaddr, int pos, int *pi);
+void* check_addr(const void*);
 
+//helper structs:
+struct process_file{
+  struct file* fileptr;
+  int fd;
+  struct list_elem elem;
+};
 
 void
 syscall_init (void)
@@ -32,6 +40,10 @@ static void
 syscall_handler (struct intr_frame *f)
 {
   int sys_code = *(int*)f->esp;
+
+  //Validacion de address, la función llama a exit si está mal
+  check_addr((int*)f->esp);
+
   switch(sys_code){
     case SYS_HALT:
         halt();
@@ -57,7 +69,7 @@ syscall_handler (struct intr_frame *f)
     case SYS_CREATE:
         {
           char* file = (char*)(*((int*)f->esp + 1));
-          unsigned initial_size = *((unsigned*)f->esp + 2);
+          off_t initial_size = (off_t)(*((int*)f->esp + 2));
           f->eax = create(file, initial_size);
           break;
         }
@@ -116,40 +128,64 @@ void close(int fd) {
 }
 
 int open(const char* file_name) {
-  if (file_name == NULL || strlen(file_name) == 0 || !is_user_vaddr(file_name)) {
+  /*if (file_name == NULL || strlen(file_name) == 0 || !is_user_vaddr(file_name)) {
     return -1;
-  }
+  }*/
 
+  //check_addr(file_name);
+  //check_addr(*file_name);
+
+  lock_acquire(&filesys_lock);
   struct file* opened_file = filesys_open(file_name);
+  lock_release(&filesys_lock);
 
-  if(opened_file == NULL)
+  if(opened_file == NULL){
     return -1;
-  return 2; // Only one file opened
+  }else{
+    struct process_file *pfile = malloc(sizeof(*pfile));
+    pfile->fileptr = opened_file;
+    pfile->fd = thread_current()->fd_count;
+    thread_current()->fd_count++;
+    list_push_back(&thread_current()->files,&pfile->elem);
+    return pfile->fd;
+  }
 }
 
 int exec(char* cmdline){
-  //write(1,cmdline, 100);
-  //agregar aquí validaciones
-  return process_execute(cmdline);
+  lock_acquire(&filesys_lock);
+	char * fn_cp = malloc (strlen(cmdline)+1);
+	  strlcpy(fn_cp, cmdline, strlen(cmdline)+1); //crea una copia de cmdline
+
+	  char * save_ptr;
+	  fn_cp = strtok_r(fn_cp," ",&save_ptr);//obtiene el primer item (nobmre del archivo)
+
+	 struct file* f = filesys_open (fn_cp);//Lo carga
+
+	  if(f==NULL)//Si el archivo existe lo ejecuta, si no existe retorna -1
+	  {
+	  	lock_release(&filesys_lock);
+	  	return -1;
+	  }else{
+	  	file_close(f);
+	  	lock_release(&filesys_lock);
+	  	return process_execute(cmdline);
+	  }
 }
 
 int wait(int child_tid){
-  //agregar aqui validaciones
+  //check_addr(child_tid);
   return process_wait(child_tid);
 }
 
-bool create(const char* file, unsigned initial_size){
-  /*if(!is_user_vaddr(file) || !is_user_vaddr(file+initial_size)){ // SI las direcciones no son validas, sale
-    thread_exit();
-  }*/
+bool create(const char* file, off_t initial_size){
+  check_addr(file);
+  lock_acquire(&filesys_lock);
   bool result = filesys_create(file, initial_size);
+  lock_release(&filesys_lock);
   return result;
 }
 
 bool remove(const char* file){
-  /*if(!is_user_vaddr(file)){ // SI las direcciones no son validas, sale
-    thread_exit();
-  }*/
   bool result = filesys_remove(file);
   return result;
 }
@@ -225,4 +261,22 @@ fd_write (int fd, const void *buffer, int size)
         bytes_written = file_write (file, buffer, size);*/
     }
   return bytes_written;
+}
+
+
+//FUnción que ayuda a verificar punteros. Si es válido lo devuelve, sno de una lo cierra
+void* check_addr(const void *vaddr)
+{
+	if (!is_user_vaddr(vaddr))
+	{
+		exit(-1);
+		return 0;
+	}
+	void *ptr = pagedir_get_page(thread_current()->pagedir, vaddr);
+	if (!ptr)
+	{
+		exit(-1);
+		return 0;
+	}
+	return ptr;
 }

@@ -155,6 +155,7 @@ thread_init (void)
   list_init (&all_list);
 
   list_init (&lista_espera);
+  lock_init(&filesys_lock);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -545,6 +546,10 @@ init_thread (struct thread *t, const char *name, int priority)
   t->parent = running_thread();
   //Inicializar semáforo
   sema_init(&t->wait_child_sema, 0);
+
+  //nuevo useprog, inicializar lista de files y conteo:
+  list_init (&t->files);
+  t->fd_count=2;
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and

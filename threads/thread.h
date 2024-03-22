@@ -103,6 +103,9 @@ struct thread
     enum thread_status child_status;
     enum thread_status exit_status;
 
+    struct list files; //lista de files abiertos por este thread
+    int fd_count;//cuenta de files.
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -152,5 +155,9 @@ int thread_get_load_avg (void);
 //NUEVAS:
 void insertar_en_lista_espera(int64_t ticks);
 void remover_thread_durmiente(int64_t ticks);
+
+// LOCK PARA SINCRONIZACION DE ARCHIVOS, usado para syscalls y filesys
+struct lock filesys_lock;
+
 
 #endif /* threads/thread.h */
