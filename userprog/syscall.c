@@ -104,11 +104,11 @@ syscall_handler (struct intr_frame *f)
         break;
     case SYS_WRITE:
         {
+          check_addr(*(((int*)f->esp + 2)));
+          check_addr(((int*)f->esp + 3));
           int fd = *((int*)f->esp + 1);
         void* buffer = (void*)(*((int*)f->esp + 2));
         unsigned size = *((unsigned*)f->esp + 3);
-        //run the syscall, a function of your own making
-        //since this syscall returns a value, the return value should be stored in f->eax
         f->eax = write(fd, buffer, size);
         break;
         }
@@ -267,9 +267,14 @@ fd_write (int fd, const void *buffer, int size)
   else
     {
       /* esto para imprimir a archivo, pero aún no implementado*/
-      /*file = fd_get_file (fd);
-      if (file != NULL && !file_is_dir (file))
-        bytes_written = file_write (file, buffer, size);*/
+      struct process_file* pfile = files_search(&thread_current()->files, fd);
+      if(pfile==NULL){
+        return -1;
+      }else{
+        lock_acquire(&filesys_lock);
+        bytes_written = file_write (pfile->fileptr, buffer, size);
+        lock_release(&filesys_lock);
+      }
     }
   return bytes_written;
 }
