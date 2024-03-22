@@ -22,6 +22,7 @@ void close(int fd);
 //helper functions:
 static bool get_int_arg (const uint8_t *uaddr, int pos, int *pi);
 void* check_addr(const void*);
+struct process_file* files_search(struct list* files, int fd);
 
 //helper structs:
 struct process_file{
@@ -56,18 +57,23 @@ syscall_handler (struct intr_frame *f)
         }
     case SYS_EXEC:
         {
+          check_addr(((int*)f->esp + 1));
+		      check_addr(*((int*)f->esp + 1));
           char *cmd_line = (char*)(*((int*)f->esp + 1));
           f->eax = exec(cmd_line);
           break;
         }
     case SYS_WAIT:
         {
+          check_addr((int*)f->esp + 1);
           int child_tid = *((int*)f->esp + 1);
           f->eax = wait(child_tid);
           break;
         }
     case SYS_CREATE:
         {
+          check_addr(((int*)f->esp + 1));
+		      check_addr(*((int*)f->esp + 1));
           char* file = (char*)(*((int*)f->esp + 1));
           off_t initial_size = (off_t)(*((int*)f->esp + 2));
           f->eax = create(file, initial_size);
@@ -87,6 +93,11 @@ syscall_handler (struct intr_frame *f)
         }
     case SYS_FILESIZE:
         //printf("SYS_FILESIZE.\n");
+        check_addr(((int*)f->esp + 1));
+        struct process_file* pfile = *(((int*)f->esp + 1));
+        lock_acquire(&filesys_lock);
+        f->eax = file_length (files_search(&thread_current()->files, pfile->fileptr));
+        lock_release(&filesys_lock);
         break;
     case SYS_READ:
         //printf("SYS_READ.\n");
@@ -261,6 +272,23 @@ fd_write (int fd, const void *buffer, int size)
         bytes_written = file_write (file, buffer, size);*/
     }
   return bytes_written;
+}
+
+
+//Funcion para buscar files en la lista de files:
+struct process_file* files_search(struct list* files, int fd)
+{
+
+	struct list_elem *e;
+
+      for (e = list_begin (files); e != list_end (files);
+           e = list_next (e))
+        {
+          struct process_file *f = list_entry (e, struct process_file, elem);
+          if(f->fd == fd)
+          	return f;
+        }
+   return NULL;
 }
 
 
