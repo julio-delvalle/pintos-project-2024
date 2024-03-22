@@ -11,6 +11,7 @@
 static void syscall_handler (struct intr_frame *);
 int halt();
 int write(int fd, const void* buffer, unsigned size);
+int read(int fd, void* buffer, unsigned size);
 bool create(const char* file, off_t initial_size);
 bool remove(const char* file);
 static void exit (int status);
@@ -92,16 +93,24 @@ syscall_handler (struct intr_frame *f)
           break;
         }
     case SYS_FILESIZE:
-        //printf("SYS_FILESIZE.\n");
-        check_addr(((int*)f->esp + 1));
-        struct process_file* pfile = *(((int*)f->esp + 1));
-        lock_acquire(&filesys_lock);
-        f->eax = file_length (files_search(&thread_current()->files, pfile->fileptr));
-        lock_release(&filesys_lock);
-        break;
+        {
+          check_addr(((int*)f->esp + 1));
+          int fd = *(((int*)f->esp + 1));
+          lock_acquire(&filesys_lock);
+          f->eax = file_length(files_search(&thread_current()->files, fd)->fileptr);
+          lock_release(&filesys_lock);
+          break;
+        }
     case SYS_READ:
-        //printf("SYS_READ.\n");
+        {
+          check_addr(*(((int*)f->esp + 2)));
+          check_addr(((int*)f->esp + 3));
+          int fd = *((int*)f->esp + 1);
+        void* buffer = (void*)(*((int*)f->esp + 2));
+        unsigned size = *((unsigned*)f->esp + 3);
+        f->eax = read(fd, buffer, size);
         break;
+        }
     case SYS_WRITE:
         {
           check_addr(*(((int*)f->esp + 2)));
@@ -204,10 +213,6 @@ bool remove(const char* file){
 int write(int fd, const void* buffer, unsigned size){
   int bytes_written;
 
-  if(!is_user_vaddr(buffer) || !is_user_vaddr(buffer+size)){ // SI las direcciones no son validas, sale
-    thread_exit();
-  }
-
   bytes_written = fd_write (fd, buffer, size);
 
   return bytes_written;
@@ -240,6 +245,34 @@ void exit(int status){
 }
 
 
+
+int read(int fd, void* buffer, unsigned size){
+  int bytes_read = -1;
+
+  if (fd == 0)
+    {
+      /* if fd =0  read from keyboard with input_getc. */
+      int i;
+      uint8_t* buf= buffer;
+			for(i=0;i<size;i++){
+				buf[i] = input_getc();
+      }
+			return size;
+    }
+  else
+    {
+      /* esto para leer de archivo*/
+      struct process_file* pfile = files_search(&thread_current()->files, fd);
+      if(pfile==NULL){
+        return -1;
+      }else{
+        lock_acquire(&filesys_lock);
+        bytes_read = file_read (pfile->fileptr, buffer, size);
+        lock_release(&filesys_lock);
+      }
+    }
+  return bytes_read;
+}
 
 /// HELPER FUNCTIONS: funciones de ayuda para parsear argumentos:
 /* Gets an integer argument at the specified positon from user space. */
